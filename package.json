@@ -1,0 +1,47 @@
+{
+    "author": "gurux13@gmail.com",
+    "dependencies": {},
+    "keywords": [],
+    "name": "weatherwatch",
+    "pebble": {
+        "capabilities": [
+            "location"
+        ],
+        "displayName": "WeatherWatch",
+        "enableMultiJS": false,
+        "messageKeys": [
+            "KEY_TEMPERATURE",
+            "KEY_CONDITIONS",
+            "KEY_WIND"
+        ],
+        "projectType": "native",
+        "resources": {
+            "media": [
+                {
+                    "characterRegex": "[-a-zA-Z\u0430-\u044f\u0410-\u042f0-9. +,/]",
+                    "file": "fonts/rufont.ttf",
+                    "name": "FONT_RUFONT_14",
+                    "targetPlatforms": null,
+                    "type": "font"
+                },
+                {
+                    "characterRegex": "[-a-zA-Z\u0430-\u044f\u0410-\u042f0-9. +,/]",
+                    "file": "fonts/rufont.ttf",
+                    "name": "FONT_RUFONT_18",
+                    "targetPlatforms": null,
+                    "type": "font"
+                }
+            ]
+        },
+        "sdkVersion": "3",
+        "targetPlatforms": [
+            "aplite",
+            "basalt"
+        ],
+        "uuid": "4c6a4d7e-96e8-4f96-941f-e7b3835fadce",
+        "watchapp": {
+            "watchface": true
+        }
+    },
+    "version": "1.0.0"
+}
