@@ -8,6 +8,7 @@ static Window *s_main_window;
 static TextLayer *s_time_layer;
 static TextLayer *s_date_layer;
 static TextLayer *s_weather_layer;
+static TextLayer *s_forecast_layer;
 static TextLayer *s_battery_layer;
 static GFont s_rufont_18;
 static GFont s_rufont_14;
@@ -20,9 +21,11 @@ static char s_date_buffer [16] = {0};
 static char s_battery_buffer [4] = {0};
 static char s_time_buffer [8] = {0};
 static char s_weather_buffer [64] = {0};
+static char s_forecast_buffer [128] = {0};
 static unsigned s_last_weather_at = 0;
 #define STORAGE_KEY_WEATHER 0
 #define STORAGE_KEY_WEATHER_AGE 1
+#define STORAGE_KEY_WEATHER_FORECAST 2
 
 
 //Events
@@ -88,6 +91,9 @@ static void load_weather()
   if (persist_exists(STORAGE_KEY_WEATHER)){
     persist_read_string(STORAGE_KEY_WEATHER, weather_info, sizeof(weather_info));
   }
+  if (persist_exists(STORAGE_KEY_WEATHER_FORECAST)){
+    persist_read_string(STORAGE_KEY_WEATHER_FORECAST, s_forecast_buffer, sizeof(s_forecast_buffer));
+  }
   if (persist_exists(STORAGE_KEY_WEATHER_AGE)){
     int val;
     val = persist_read_int(STORAGE_KEY_WEATHER_AGE);
@@ -105,6 +111,7 @@ static void save_weather() {
     int val;
     val = *(int*)(&s_last_weather_at);
     persist_write_int(STORAGE_KEY_WEATHER_AGE, val);
+    persist_write_string(STORAGE_KEY_WEATHER_FORECAST, s_forecast_buffer);
   }
 }
 static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
@@ -112,22 +119,26 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
   static char temperature_buffer[8];
   static char conditions_buffer[32];
   static char wind_buffer[32];
+  
 
   // Read tuples for data
   Tuple *temp_tuple = dict_find(iterator, MESSAGE_KEY_KEY_TEMPERATURE);
   Tuple *conditions_tuple = dict_find(iterator, MESSAGE_KEY_KEY_CONDITIONS);
   Tuple *wind_tuple = dict_find(iterator, MESSAGE_KEY_KEY_WIND);
+  Tuple *forecast_tuple = dict_find(iterator, MESSAGE_KEY_KEY_FORECAST);
 
   // If all data is available, use it
-  if(temp_tuple && conditions_tuple && wind_tuple) {
+  if(temp_tuple && conditions_tuple && wind_tuple && forecast_tuple) {
     snprintf(temperature_buffer, sizeof(temperature_buffer), "%s", temp_tuple->value->cstring);
     snprintf(conditions_buffer, sizeof(conditions_buffer), "%s", conditions_tuple->value->cstring);
     snprintf(wind_buffer, sizeof(wind_buffer), "%s", wind_tuple->value->cstring);
-
+    snprintf(s_forecast_buffer, sizeof(s_forecast_buffer), "%s", forecast_tuple->value->cstring);
     // Assemble full string and display
-    snprintf(s_weather_buffer, sizeof(s_weather_buffer), "%s, %s, %s", temperature_buffer, wind_buffer, conditions_buffer);
+    snprintf(s_weather_buffer, sizeof(s_weather_buffer), "%s, %s\n%s", temperature_buffer, wind_buffer, conditions_buffer);
     strcpy(weather_info, s_weather_buffer);
     text_layer_set_text(s_weather_layer, s_weather_buffer);
+    text_layer_set_text(s_forecast_layer, s_forecast_buffer);
+    
     s_last_weather_at = time(NULL);
     save_weather();
   }
@@ -255,12 +266,18 @@ static void main_window_load(Window *window) {
   s_weather_layer = text_layer_create(
       GRect(0, y, bounds.size.w, h));
   y += h;
-  
+
+  h = 12;
+  s_forecast_layer = text_layer_create(
+      GRect(0, y, bounds.size.w, h));
+  y += h;
+
   // Improve the layout to be more like a watchface
   set_text_prop(s_date_layer, NULL, GTextAlignmentLeft, false);
   set_text_prop(s_battery_layer, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentRight, false);
   set_text_prop(s_time_layer, FONT_KEY_LECO_42_NUMBERS, GTextAlignmentCenter, false);
   set_text_prop(s_weather_layer, NULL, GTextAlignmentCenter, true);
+  set_text_prop(s_forecast_layer, FONT_KEY_GOTHIC_09, GTextAlignmentCenter, false);
   
   // Create GFont
   s_rufont_18 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_RUFONT_18));
@@ -269,13 +286,17 @@ static void main_window_load(Window *window) {
 // Apply to TextLayer
   text_layer_set_font(s_date_layer, s_rufont_18);
   text_layer_set_font(s_weather_layer, s_rufont_18);
+  //text_layer_set_font(s_forecast_layer, s_rufont_14);
   //text_layer_set_font(s_battery_layer, s_rufont_14);
 
   // Add it as a child layer to the Window's root layer
   layer_add_child(window_layer, text_layer_get_layer(s_time_layer));
   layer_add_child(window_layer, text_layer_get_layer(s_date_layer));
-  layer_add_child(window_layer, text_layer_get_layer(s_weather_layer));
   layer_add_child(window_layer, text_layer_get_layer(s_battery_layer));
+  
+  layer_add_child(window_layer, text_layer_get_layer(s_weather_layer));
+  layer_add_child(window_layer, text_layer_get_layer(s_forecast_layer));
+  
   update_time();
   load_weather();
   if (weather_info[0] == 0) {
@@ -283,6 +304,7 @@ static void main_window_load(Window *window) {
   }
   else {
     text_layer_set_text(s_weather_layer, weather_info);
+    text_layer_set_text(s_forecast_layer, s_forecast_buffer);
   }
   read_event_values();
   draw_status();
@@ -295,6 +317,7 @@ static void main_window_unload(Window *window) {
   text_layer_destroy(s_time_layer);
   text_layer_destroy(s_date_layer);
   text_layer_destroy(s_weather_layer);
+  text_layer_destroy(s_forecast_layer);
   text_layer_destroy(s_battery_layer);
   fonts_unload_custom_font(s_rufont_18);
   fonts_unload_custom_font(s_rufont_14);

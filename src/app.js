@@ -28,16 +28,39 @@ function extractWeather(text) {
   var conditions = "неизвестно";
   if (pieces.length > 0)
     conditions = pieces[0].trim();
+  if (conditions == "облачно с прояснениями")
+     conditions = "полуоблачно";
+  conditions = conditions.split(" ")[0];
   var wind = "? м/с";
   if (pieces.length > 1)
     wind = pieces[1].replace("ветер", "").trim();
   var temperature_a = text.match(/<span class="temp-current i-bem" data-bem="[^"]*">([^<]*)</);
   var temperature = at_or_default(temperature_a, 1, "-273");
+  
+  var forecast = "";
+  var forecast_re = /<p class="temp-chart__hour">([0-9]*)[ ч]*<\/p>\s*<div class="temp-chart__item temp-chart__item_diff_[^"]*">\s*<div class="temp-chart__temp" data-t="[^"]*">([^<]*)</g;
+  var forecast_a;
+  var incl = 0;
+  
+  while ((forecast_a = forecast_re.exec(text)) !== null) {
+    if (incl === 0) {
+      var h = forecast_a[1];
+      if (h.length == 1)
+        h = "0" + h;
+      forecast += h + " " + forecast_a[2] + ", ";
+      
+    }
+    incl = (incl + 1) % 3;
+  }
+  if (forecast.length > 2)
+    forecast = forecast.substring(0, forecast.length - 2);
+  console.log("Forecast: " + forecast);
   var rv = {now: {
       conditions: conditions,
       temperature: temperature,
       wind: wind
-    }
+    }, 
+    forecast: forecast
   };
   return rv;
 }
@@ -60,6 +83,7 @@ function locationSuccess(pos) {
       // Conditions
       var conditions = weather.now.conditions;
       var wind = weather.now.wind;
+      var forecast = weather.forecast;
       console.log("Conditions are " + conditions);
       console.log("Wind is " + wind);
       
@@ -67,7 +91,8 @@ function locationSuccess(pos) {
       var dictionary = {
         "KEY_TEMPERATURE": temperature,
         "KEY_CONDITIONS": conditions,
-        "KEY_WIND": wind
+        "KEY_WIND": wind,
+        "KEY_FORECAST": forecast
       };
 
       // Send to Pebble
@@ -102,7 +127,7 @@ Pebble.addEventListener('ready',
     console.log("PebbleKit JS ready!");
 
     // Get the initial weather
-    getWeather();
+    //getWeather();
   }
 );
 

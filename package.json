@@ -12,22 +12,23 @@
         "messageKeys": [
             "KEY_TEMPERATURE",
             "KEY_CONDITIONS",
-            "KEY_WIND"
+            "KEY_WIND",
+            "KEY_FORECAST"
         ],
         "projectType": "native",
         "resources": {
             "media": [
                 {
-                    "characterRegex": "[-a-zA-Z\u0430-\u044f\u0410-\u042f0-9. +,/?]",
+                    "characterRegex": "[-a-zA-Z\u0430-\u044f\u0410-\u042f0-9. +,/:?]",
                     "file": "fonts/rufont.ttf",
-                    "name": "FONT_RUFONT_18",
+                    "name": "FONT_RUFONT_14",
                     "targetPlatforms": null,
                     "type": "font"
                 },
                 {
-                    "characterRegex": "[-a-zA-Z\u0430-\u044f\u0410-\u042f0-9. +,/?]",
+                    "characterRegex": "[-a-zA-Z\u0430-\u044f\u0410-\u042f0-9. +,/:?]",
                     "file": "fonts/rufont.ttf",
-                    "name": "FONT_RUFONT_14",
+                    "name": "FONT_RUFONT_18",
                     "targetPlatforms": null,
                     "type": "font"
                 }
