@@ -21,15 +21,18 @@ function at_or_default(array, id, def) {
   return array[id];
 }
 function extractWeather(text) {
-  var conditions_a = text.match(/\"current-weather__comment\">([^<]*)<\//);
-  var conditions = at_or_default(conditions_a, 1, "неизвестно");
-  if (conditions == "облачно с прояснениями")
-    conditions = "полуоблачно";
-  conditions = conditions.split(" ")[0];
-  var temperature_a = text.match(/([0-9+-]*) °C/);
+  var weather_info_a = text.match(/<div class="today-forecast">([^<]*)</);
+  var weather_info = at_or_default(weather_info_a, 1, "Сегодня неизвестно, ветер ? м/с");
+  weather_info = weather_info.replace("Сегодня", "");
+  var pieces = weather_info.split(",");
+  var conditions = "неизвестно";
+  if (pieces.length > 0)
+    conditions = pieces[0].trim();
+  var wind = "? м/с";
+  if (pieces.length > 1)
+    wind = pieces[1].replace("ветер", "").trim();
+  var temperature_a = text.match(/<span class="temp-current i-bem" data-bem="[^"]*">([^<]*)</);
   var temperature = at_or_default(temperature_a, 1, "-273");
-  var wind_a = text.match(/<span class=\"wind-speed\">([^<]*)<\/span>/);
-  var wind = at_or_default(wind_a, 1, "? м/с").replace(',','.');
   var rv = {now: {
       conditions: conditions,
       temperature: temperature,
@@ -42,7 +45,7 @@ function extractWeather(text) {
 function locationSuccess(pos) {
   // Construct URL
   console.log("Location acquired, requesting weather");
-  var url = "https://pogoda.yandex.ru/moscow?lat=" + pos.coords.latitude + "&lon=" + pos.coords.longitude;
+  var url = "https://p.ya.ru/moscow?lat=" + pos.coords.latitude + "&lon=" + pos.coords.longitude;
   // Send request to OpenWeatherMap
   xhrRequest(url, 'GET', 
     function(responseText) {
