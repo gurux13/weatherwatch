@@ -38,7 +38,7 @@ function extractWeather(text) {
   var temperature = at_or_default(temperature_a, 1, "-273");
   
   var forecast = "";
-  var forecast_re = /<p class="temp-chart__hour">([0-9]*)[ ч]*<\/p>\s*<div class="temp-chart__item temp-chart__item_diff_[^"]*">\s*<div class="temp-chart__temp" data-t="[^"]*">([^<]*)</g;
+  var forecast_re = /"temp-chart__hour">([0-9]*)[ ч]*<\/p>\s*<div class="temp-chart__item temp-chart__item_diff_[^"]*">\s*<div class="temp-chart__temp" data-t="[^"]*">([^<]*)<\/div>\s*<[^>]*>\s*<.{0,40}/g;
   var forecast_a;
   var incl = 0;
   
@@ -47,7 +47,10 @@ function extractWeather(text) {
       var h = forecast_a[1];
       if (h.length == 1)
         h = "0" + h;
-      forecast += h + " " + forecast_a[2] + ", ";
+      var val = forecast_a[2];
+      if (forecast_a[0].indexOf('icon_rain') != -1)
+        val += "!";
+      forecast += h + " " + val + ", ";
       
     }
     incl = (incl + 1) % 3;
