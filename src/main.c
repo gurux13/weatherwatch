@@ -11,6 +11,7 @@ static TextLayer *s_weather_layer;
 static TextLayer *s_forecast_layer;
 static TextLayer *s_battery_layer;
 static TextLayer *s_traffic_layer;
+static TextLayer *s_currency_layer;
 static BitmapLayer * s_traffic_image_layer;
 
 static GFont s_rufont_18;
@@ -26,11 +27,13 @@ static char s_time_buffer [8] = {0};
 static char s_weather_buffer [64] = {0};
 static char s_forecast_buffer [128] = {0};
 static char s_traffic_buffer [4] = "y0";
+static char s_currency_buffer [16] = {0};
 static unsigned s_last_weather_at = 0;
 #define STORAGE_KEY_WEATHER 0
 #define STORAGE_KEY_WEATHER_AGE 1
 #define STORAGE_KEY_WEATHER_FORECAST 2
 #define STORAGE_KEY_TRAFFIC 3
+#define STORAGE_KEY_CURRENCY 4
 
 
 //Events
@@ -110,6 +113,9 @@ static void load_data()
   if (persist_exists(STORAGE_KEY_TRAFFIC)){
     persist_read_string(STORAGE_KEY_TRAFFIC, s_traffic_buffer, sizeof(s_traffic_buffer));
   }
+    if (persist_exists(STORAGE_KEY_CURRENCY)){
+    persist_read_string(STORAGE_KEY_CURRENCY, s_currency_buffer, sizeof(s_currency_buffer));
+  }
   char obtained_at [32];
   time_t temp = time(NULL);
   struct tm *tick_time = localtime(&temp);
@@ -126,6 +132,9 @@ static void save_data() {
   }
   if (s_traffic_buffer[0]) {
     persist_write_string(STORAGE_KEY_TRAFFIC, s_traffic_buffer);
+  }
+  if (s_currency_buffer[0]) {
+    persist_write_string(STORAGE_KEY_CURRENCY, s_currency_buffer);
   }
 }
 static void draw_traffic() {
@@ -155,6 +164,9 @@ static void draw_traffic() {
   text_layer_set_text(s_traffic_layer, traffic_text);
   text_layer_set_text_color(s_traffic_layer, colorCode);
 }
+static void draw_currency() {
+  text_layer_set_text(s_currency_layer, s_currency_buffer);
+}
 static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
   // Store incoming information
   static char temperature_buffer[8];
@@ -168,6 +180,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
   Tuple *wind_tuple = dict_find(iterator, MESSAGE_KEY_KEY_WIND);
   Tuple *forecast_tuple = dict_find(iterator, MESSAGE_KEY_KEY_FORECAST);
   Tuple *traffic_tuple = dict_find(iterator, MESSAGE_KEY_KEY_TRAFFIC);
+  Tuple *currency_tuple = dict_find(iterator, MESSAGE_KEY_KEY_CURRENCY);
   // If all data is available, use it
   if(temp_tuple && conditions_tuple && wind_tuple && forecast_tuple) {
     snprintf(temperature_buffer, sizeof(temperature_buffer), "%s", temp_tuple->value->cstring);
@@ -186,6 +199,11 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
   if (traffic_tuple) {
     snprintf(s_traffic_buffer, sizeof(s_traffic_buffer), "%s", traffic_tuple->value->cstring);
     draw_traffic();
+    save_data();
+  }
+  if (currency_tuple) {
+    snprintf(s_currency_buffer, sizeof(s_currency_buffer), "%s", currency_tuple->value->cstring);
+    draw_currency();
     save_data();
   }
 }
@@ -323,7 +341,12 @@ static void main_window_load(Window *window) {
   s_traffic_image_layer = bitmap_layer_create(
     GRect(0, y, 25, 25));
   
+
+  
   //Move to the right
+  
+  s_currency_layer = text_layer_create(
+      GRect(30, y, bounds.size.w - 30, 25));
   
   y += h;
 
@@ -334,6 +357,7 @@ static void main_window_load(Window *window) {
   set_text_prop(s_weather_layer, NULL, GTextAlignmentCenter, true);
   set_text_prop(s_forecast_layer, FONT_KEY_GOTHIC_09, GTextAlignmentCenter, false);
   set_text_prop(s_traffic_layer, FONT_KEY_LECO_20_BOLD_NUMBERS, GTextAlignmentCenter, true);
+  set_text_prop(s_currency_layer, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentLeft, true);
   text_layer_set_background_color(s_traffic_layer, GColorClear);
   // Create GFont
   s_rufont_18 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_RUFONT_18));
@@ -354,6 +378,7 @@ static void main_window_load(Window *window) {
   layer_add_child(window_layer, text_layer_get_layer(s_forecast_layer));
   layer_add_child(window_layer, bitmap_layer_get_layer(s_traffic_image_layer));
   layer_add_child(window_layer, text_layer_get_layer(s_traffic_layer));
+  layer_add_child(window_layer, text_layer_get_layer(s_currency_layer));
   
   update_time();
   load_data();
@@ -367,6 +392,7 @@ static void main_window_load(Window *window) {
   read_event_values();
   draw_status();
   draw_traffic();
+  draw_currency();
 }
 
 static void main_window_unload(Window *window) {
@@ -378,6 +404,7 @@ static void main_window_unload(Window *window) {
   text_layer_destroy(s_forecast_layer);
   text_layer_destroy(s_battery_layer);
   text_layer_destroy(s_traffic_layer);
+  text_layer_destroy(s_currency_layer);
   bitmap_layer_destroy(s_traffic_image_layer);
   fonts_unload_custom_font(s_rufont_18);
   fonts_unload_custom_font(s_rufont_14);

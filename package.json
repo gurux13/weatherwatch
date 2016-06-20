@@ -14,7 +14,8 @@
             "KEY_CONDITIONS",
             "KEY_WIND",
             "KEY_FORECAST",
-            "KEY_TRAFFIC"
+            "KEY_TRAFFIC",
+            "KEY_CURRENCY"
         ],
         "projectType": "native",
         "resources": {

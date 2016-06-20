@@ -50,7 +50,7 @@ function extractWeather(text) {
       var val = forecast_a[2];
       if (forecast_a[0].indexOf('icon_rain') != -1)
         val += "!";
-      forecast += h + " " + val + ", ";
+      forecast += h + val + ", ";
       
     }
     incl = (incl + 1) % 3;
@@ -79,7 +79,7 @@ function onGotTraffic(text) {
   var toSend = icon.substring(0, 1) + level;
   console.log("Traffic level: " + level + ", icon: " + icon + ", sending: " + toSend);
   //toSend = 'g1';
-    var message = {
+  var message = {
     'KEY_TRAFFIC': toSend
   };
   Pebble.sendAppMessage(message,
@@ -155,7 +155,25 @@ function locationSuccess(pos) {
 function locationError(err) {
   console.log("Error requesting location!");
 }
+function onUsd(text) {
+  text = text.replace(/.*value"\s*:\s*/, '').replace(/[^0-9.]/g,'');
+  var val = parseFloat(text).toFixed(2);
+  var toSend = '$' + val + "";
+  var message = {
+    'KEY_CURRENCY': toSend
+  };
+  Pebble.sendAppMessage(message,
+        function(e) {
+          console.log("Traffic info sent to Pebble successfully!");
+        },
+        function(e) {
+          console.log("Error sending weather info to Pebble!");
+        }
+      );
 
+
+  
+}
 function getWeather() {
   console.log("Requesting location...");
   navigator.geolocation.getCurrentPosition(
@@ -163,6 +181,9 @@ function getWeather() {
     locationError,
     {timeout: 15000, maximumAge: 600000}
   );
+  var usdUrl = "http://www.rbc.ru/money_graph/latest/59111/";
+  
+  xhrRequest(usdUrl, 'GET', onUsd);
 }
 
 // Listen for when the watchface is opened
