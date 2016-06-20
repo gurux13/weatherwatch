@@ -13,11 +13,30 @@
             "KEY_TEMPERATURE",
             "KEY_CONDITIONS",
             "KEY_WIND",
-            "KEY_FORECAST"
+            "KEY_FORECAST",
+            "KEY_TRAFFIC"
         ],
         "projectType": "native",
         "resources": {
             "media": [
+                {
+                    "file": "images/traffic-red",
+                    "name": "IMAGE_TRAFFIC_RED",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/traffic-yellow",
+                    "name": "IMAGE_TRAFFIC_YELLOW",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/traffic-green",
+                    "name": "IMAGE_TRAFFIC_GREEN",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
                 {
                     "characterRegex": "[-a-zA-Z\u0430-\u044f\u0410-\u042f0-9. +,/:?]",
                     "file": "fonts/rufont.ttf",
@@ -39,7 +58,7 @@
             "aplite",
             "basalt"
         ],
-        "uuid": "4c6a4d7e-96e8-4f96-941f-e7b3835fadce",
+        "uuid": "b1aacfbf-fe69-4224-a12a-c2d9780c8620",
         "watchapp": {
             "watchface": true
         }

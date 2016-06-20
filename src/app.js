@@ -68,12 +68,51 @@ function extractWeather(text) {
   return rv;
 }
 
+function onGotTraffic(text) {
+  console.log("Got traffic");
+  var matches = text.match(/"level":([0-9]*),/);
+  
+  var level = at_or_default(matches, 1, "-1");
+  matches = text.match(/"icon":"([^"]*)"/);
+  
+  var icon = at_or_default(matches, 1, "green");
+  var toSend = icon.substring(0, 1) + level;
+  console.log("Traffic level: " + level + ", icon: " + icon + ", sending: " + toSend);
+  //toSend = 'g1';
+    var message = {
+    'KEY_TRAFFIC': toSend
+  };
+  Pebble.sendAppMessage(message,
+        function(e) {
+          console.log("Traffic info sent to Pebble successfully!");
+        },
+        function(e) {
+          console.log("Error sending weather info to Pebble!");
+        }
+      );
+
+}
+
+function onGotLayers(text) {
+  console.log("Got layers.xml");
+  var matches = text.match(/"version":"([0-9]*)"/);
+  var tm = at_or_default(matches, 1, "-1");
+  if (tm == "-1") {
+    console.log("Got no version in layers, giving up");
+    console.log(text);
+    return;
+  }
+  var urlTraffic = "https://jgo.maps.yandex.net/description/traffic-light?lang=ru_RU&ids=213&tm=" + tm + "&_=9175338";
+  
+  xhrRequest(urlTraffic, 'GET', onGotTraffic);
+}
+
 function locationSuccess(pos) {
   // Construct URL
   console.log("Location acquired, requesting weather");
-  var url = "https://p.ya.ru/moscow?lat=" + pos.coords.latitude + "&lon=" + pos.coords.longitude;
+  var urlWeather = "https://p.ya.ru/moscow?lat=" + pos.coords.latitude + "&lon=" + pos.coords.longitude;
   // Send request to OpenWeatherMap
-  xhrRequest(url, 'GET', 
+  xhrRequest(urlWeather, 'GET', 
     function(responseText) {
       console.log("YA response got, length: " + responseText.length);
       // responseText contains a JSON object with weather info
@@ -109,6 +148,8 @@ function locationSuccess(pos) {
       );
     }      
   );
+  var urlLayers = "https://api-maps.yandex.ru/services/coverage/1.0/layers.xml?lang=ru_RU&l=trf&callback=id_146635635855735192313&_=6404139&host_config%5Bhostname%5D=yandex.ru";
+  xhrRequest(urlLayers, 'GET', onGotLayers);
 }
 
 function locationError(err) {
