@@ -14,12 +14,72 @@ var xhrRequest = function (url, type, callback) {
   
   
 };
+var city = "";
+function in_array(needle, haystack, strict) {	// Checks if a value exists in an array
+	// 
+	// +   original by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
 
+	var found = false, key;
+  strict = !!strict;
+
+	for (key in haystack) {
+		if ((strict && haystack[key] === needle) || (!strict && haystack[key] == needle)) {
+			found = true;
+			break;
+		}
+	}
+
+	return found;
+}
 function at_or_default(array, id, def) {
   if (array === null || array.length <= id)
     return def;
   return array[id];
 }
+function onCity() {
+  console.log("City obtained: " + city);
+}
+function getCity(lat, lng) {
+  
+  var url = "http://maps.googleapis.com/maps/api/geocode/json?latlng=" + lat + "," + lng;
+  console.log("Requesting city at url " + url);
+  xhrRequest(url, 'GET', function(text) {
+    //console.log("Got city info: " + text);
+    //I hate parsing and checking json...
+    var json = JSON.parse(text);
+    if (json.results !== undefined) {
+      console.log("Have city results");
+      for (var i = 0; i < json.results.length; ++i) {
+        var result = json.results[i];
+        console.log("This result types: " + result.types);
+        if (result.types !== undefined && in_array('locality',result.types, true)) {
+          console.log("Found locality result");
+          if (result.address_components !== undefined) {
+            for (var j = 0; j < result.address_components.length; ++j) {
+              var component =  result.address_components[j];
+              console.log("This component types: " + component.types);
+              if (component.types !== undefined && in_array('locality', component.types, true)) {
+                console.log("Found locality address component");
+                if (component.short_name !== undefined) {
+                  city = component.short_name;
+                  onCity();
+                  return;
+                }
+                if (component.long_name !== undefined) {
+                  city = component.long_name;
+                  onCity();
+                  return;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+
 function extractWeather(text) {
   var weather_info_a = text.match(/<div class="today-forecast">([^<]*)</);
   var weather_info = at_or_default(weather_info_a, 1, "Сегодня неизвестно, ветер ? м/с");
@@ -78,7 +138,7 @@ function onGotTraffic(text) {
   var icon = at_or_default(matches, 1, "green");
   var toSend = icon.substring(0, 1) + level;
   console.log("Traffic level: " + level + ", icon: " + icon + ", sending: " + toSend);
-  //toSend = 'g1';
+  //toSend = 'y5';
   var message = {
     'KEY_TRAFFIC': toSend
   };
@@ -110,6 +170,7 @@ function onGotLayers(text) {
 function locationSuccess(pos) {
   // Construct URL
   console.log("Location acquired, requesting weather");
+  getCity(pos.coords.latitude, pos.coords.longitude);
   var urlWeather = "https://p.ya.ru/moscow?lat=" + pos.coords.latitude + "&lon=" + pos.coords.longitude;
   // Send request to OpenWeatherMap
   xhrRequest(urlWeather, 'GET', 
@@ -155,24 +216,40 @@ function locationSuccess(pos) {
 function locationError(err) {
   console.log("Error requesting location!");
 }
-function onUsd(text) {
+function parseCurrency(text) {
   text = text.replace(/.*value"\s*:\s*/, '').replace(/[^0-9.]/g,'');
   var val = parseFloat(text).toFixed(2);
-  var toSend = '$' + val + "";
-  var message = {
-    'KEY_CURRENCY': toSend
-  };
-  Pebble.sendAppMessage(message,
-        function(e) {
-          console.log("Traffic info sent to Pebble successfully!");
-        },
-        function(e) {
-          console.log("Error sending weather info to Pebble!");
-        }
-      );
-
-
+  return val;
+}
+var eur = "";
+var usd = "";
+function send_currencies_if_both() {
+  console.log('Got a currency. Now eur = ' + eur + ", usd = " + usd);
+  if (eur && usd) {
+    var toSend = usd + "  " + eur;
+    var message = {
+      'KEY_CURRENCY': toSend
+    };
+    Pebble.sendAppMessage(message,
+          function(e) {
+            console.log("Currencies info sent to Pebble successfully!");
+          },
+          function(e) {
+            console.log("Error sending weather info to Pebble!");
+          }
+    );
+    eur = usd = "";    
+  }
   
+}
+function onEur(text) {
+  eur = '€' + parseCurrency(text);
+  
+  send_currencies_if_both();
+}
+function onUsd(text) {
+  usd = '$' + parseCurrency(text);
+  send_currencies_if_both();
 }
 function getWeather() {
   console.log("Requesting location...");
@@ -181,18 +258,27 @@ function getWeather() {
     locationError,
     {timeout: 15000, maximumAge: 600000}
   );
-  var usdUrl = "http://www.rbc.ru/money_graph/latest/59111/";
-  
-  xhrRequest(usdUrl, 'GET', onUsd);
 }
-
+function getCurrencies() {
+  var usdUrl = "http://www.rbc.ru/money_graph/latest/59111/";
+  xhrRequest(usdUrl, 'GET', onUsd);
+  var eurUrl = "http://www.rbc.ru/money_graph/latest/59090/";
+  xhrRequest(eurUrl, 'GET', onEur);
+  
+}
+function getAll() {
+  getWeather();
+  getCurrencies();
+}
 // Listen for when the watchface is opened
 Pebble.addEventListener('ready', 
   function(e) {
     console.log("PebbleKit JS ready!");
 
     // Get the initial weather
-    //getWeather();
+    getWeather();
+    //Only currencies are free
+    getCurrencies();
   }
 );
 
@@ -200,6 +286,6 @@ Pebble.addEventListener('ready',
 Pebble.addEventListener('appmessage',
   function(e) {
     console.log("AppMessage received!");
-    getWeather();
+    getAll();
   }                     
 );

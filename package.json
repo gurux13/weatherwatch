@@ -5,7 +5,8 @@
     "name": "weatherwatch",
     "pebble": {
         "capabilities": [
-            "location"
+            "location",
+            "health"
         ],
         "displayName": "WeatherWatch",
         "enableMultiJS": false,

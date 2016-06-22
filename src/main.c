@@ -26,8 +26,8 @@ static char s_battery_buffer [8] = {0};
 static char s_time_buffer [8] = {0};
 static char s_weather_buffer [64] = {0};
 static char s_forecast_buffer [128] = {0};
-static char s_traffic_buffer [4] = "y0";
-static char s_currency_buffer [16] = {0};
+static char s_traffic_buffer [4] = "y-";
+static char s_currency_buffer [32] = {0};
 static unsigned s_last_weather_at = 0;
 #define STORAGE_KEY_WEATHER 0
 #define STORAGE_KEY_WEATHER_AGE 1
@@ -35,6 +35,51 @@ static unsigned s_last_weather_at = 0;
 #define STORAGE_KEY_TRAFFIC 3
 #define STORAGE_KEY_CURRENCY 4
 
+
+//Health
+static void update_health() {
+  HealthMetric metric = HealthMetricStepCount;
+  time_t start = time_start_of_today();
+  time_t end = time(NULL);
+  
+  // Check the metric has data available for today
+  HealthServiceAccessibilityMask mask = health_service_metric_accessible(metric, 
+    start, end);
+  
+  if(mask & HealthServiceAccessibilityMaskAvailable) {
+    // Data is available!
+    APP_LOG(APP_LOG_LEVEL_INFO, "Steps today: %d", 
+            (int)health_service_sum_today(metric));
+  } else {
+    // No data recorded yet today
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Data unavailable!");
+  }
+}
+static void health_handler(HealthEventType event, void *context) {
+  // Which type of event occurred?
+  switch(event) {
+    case HealthEventSignificantUpdate:
+      APP_LOG(APP_LOG_LEVEL_INFO, 
+              "New HealthService HealthEventSignificantUpdate event");
+      update_health();
+      break;
+    case HealthEventMovementUpdate:
+      APP_LOG(APP_LOG_LEVEL_INFO, 
+              "New HealthService HealthEventMovementUpdate event");
+      update_health();
+      break;
+    case HealthEventSleepUpdate:
+      APP_LOG(APP_LOG_LEVEL_INFO, 
+              "New HealthService HealthEventSleepUpdate event");
+      update_health();
+      break;
+  }
+}
+static void subscribe_health() {
+  if(!health_service_events_subscribe(health_handler, NULL)) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Health not available!");
+  }
+}
 
 //Events
 static void draw_status() {
@@ -94,6 +139,7 @@ static void read_event_values() {
 static void subscribe_events() {
   subscribe_battery();
   subscribe_connection();
+  subscribe_health();
 }
 //Weather
 
@@ -318,14 +364,14 @@ static void main_window_load(Window *window) {
   int y = 0;
   int h = 18;
   s_date_layer = text_layer_create(
-      GRect(0, y, bounds.size.w, h));
+      GRect(0, y, bounds.size.w, h + 4));
   s_battery_layer = text_layer_create(
       GRect(110, y, bounds.size.w - 110, h));
   y += h;
-  h = 49;
+  h = 45;
   s_time_layer = text_layer_create(
-      GRect(0, y-5, bounds.size.w, h));
-  y += h - 5;
+      GRect(0, y - 4, bounds.size.w, h));
+  y += h - 4;
   h = 40;
   s_weather_layer = text_layer_create(
       GRect(0, y, bounds.size.w, h));
@@ -337,7 +383,7 @@ static void main_window_load(Window *window) {
   y += h;
   h = 25;
   s_traffic_layer = text_layer_create(
-      GRect(0, y, 25, 25));
+      GRect(0, y - 5, 25, 25));
   s_traffic_image_layer = bitmap_layer_create(
     GRect(0, y, 25, 25));
   
@@ -356,8 +402,8 @@ static void main_window_load(Window *window) {
   set_text_prop(s_time_layer, FONT_KEY_LECO_42_NUMBERS, GTextAlignmentCenter, false);
   set_text_prop(s_weather_layer, NULL, GTextAlignmentCenter, true);
   set_text_prop(s_forecast_layer, FONT_KEY_GOTHIC_09, GTextAlignmentCenter, false);
-  set_text_prop(s_traffic_layer, FONT_KEY_LECO_20_BOLD_NUMBERS, GTextAlignmentCenter, true);
-  set_text_prop(s_currency_layer, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentLeft, true);
+  set_text_prop(s_traffic_layer, FONT_KEY_GOTHIC_24_BOLD, GTextAlignmentCenter, true);
+  set_text_prop(s_currency_layer, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentCenter, true);
   text_layer_set_background_color(s_traffic_layer, GColorClear);
   // Create GFont
   s_rufont_18 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_RUFONT_18));
@@ -393,6 +439,7 @@ static void main_window_load(Window *window) {
   draw_status();
   draw_traffic();
   draw_currency();
+  update_health();
 }
 
 static void main_window_unload(Window *window) {
