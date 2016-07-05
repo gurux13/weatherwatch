@@ -80,7 +80,6 @@ function getCity(lat, lng) {
 }
 
 function extractExtendedWeather(text) {
-  console.log(text);
   var pressure_info_a = text.match(/<div class="current-weather__condition-item">Давление: ([0-9]*) мм рт. ст./);
   var pressure_info = at_or_default(pressure_info_a, 1, "888");
   return {
@@ -209,12 +208,12 @@ function locationSuccess(pos) {
           var forecast = weather.forecast;
           console.log("Conditions are " + conditions);
           console.log("Wind is " + wind);
-          var weather = temperature + " " + wind + " " + pressure + "\n" + conditions;
+          var weatherString = temperature + " " + wind + " " + pressure + "\n" + conditions;
           // Assemble dictionary using our keys
           var dictionary = {
-            "KEY_WEATHER": weather,
+            "KEY_WEATHER": weatherString,
             "KEY_FORECAST": forecast,
-            "KEY_PRESSURE": pressure
+            "KEY_PRESSURE": parseInt(pressure)
           };
     
           // Send to Pebble

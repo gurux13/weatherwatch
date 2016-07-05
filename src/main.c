@@ -1,5 +1,5 @@
 #include <pebble.h>
-
+#include <pressure.h>
 
 
 
@@ -13,6 +13,7 @@ static TextLayer *s_battery_layer;
 static TextLayer *s_traffic_layer;
 static TextLayer *s_currency_layer;
 static BitmapLayer * s_traffic_image_layer;
+static Layer * s_pressure_plot_layer;
 
 static GFont s_rufont_18;
 static GFont s_rufont_14;
@@ -222,6 +223,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
   Tuple *forecast_tuple = dict_find(iterator, MESSAGE_KEY_KEY_FORECAST);
   Tuple *traffic_tuple = dict_find(iterator, MESSAGE_KEY_KEY_TRAFFIC);
   Tuple *currency_tuple = dict_find(iterator, MESSAGE_KEY_KEY_CURRENCY);
+  Tuple *pressure_tuple = dict_find(iterator, MESSAGE_KEY_KEY_PRESSURE);
   // If all data is available, use it
   if(weather_tuple && forecast_tuple) {
     snprintf(s_weather_buffer, sizeof(s_weather_buffer), "%s", weather_tuple->value->cstring);
@@ -243,6 +245,9 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     snprintf(s_currency_buffer, sizeof(s_currency_buffer), "%s", currency_tuple->value->cstring);
     draw_currency();
     save_data();
+  }
+  if (pressure_tuple) {
+    on_pressure_received(pressure_tuple->value->int32);
   }
 }
 
@@ -377,6 +382,10 @@ static void main_window_load(Window *window) {
   s_weather_layer = text_layer_create(
       GRect(0, y, bounds.size.w, h));
   y += h;
+  h = 31;
+  s_pressure_plot_layer = layer_create(
+    GRect(0, y, bounds.size.w, h));
+  y += h;
 
   h = 12;
   s_forecast_layer = text_layer_create(
@@ -387,15 +396,14 @@ static void main_window_load(Window *window) {
       GRect(0, y - 5, 25, 25));
   s_traffic_image_layer = bitmap_layer_create(
     GRect(0, y, 25, 25));
-  
 
-  
   //Move to the right
   
   s_currency_layer = text_layer_create(
       GRect(30, y, bounds.size.w - 30, 25));
   
   y += h;
+  pressure_init(s_pressure_plot_layer);
 
   // Improve the layout to be more like a watchface
   set_text_prop(s_date_layer, NULL, GTextAlignmentLeft, false);
@@ -426,6 +434,7 @@ static void main_window_load(Window *window) {
   layer_add_child(window_layer, bitmap_layer_get_layer(s_traffic_image_layer));
   layer_add_child(window_layer, text_layer_get_layer(s_traffic_layer));
   layer_add_child(window_layer, text_layer_get_layer(s_currency_layer));
+  layer_add_child(window_layer, s_pressure_plot_layer);
   
   update_time();
   load_data();
