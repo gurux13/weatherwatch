@@ -11,12 +11,11 @@
         "displayName": "WeatherWatch",
         "enableMultiJS": false,
         "messageKeys": [
-            "KEY_TEMPERATURE",
-            "KEY_CONDITIONS",
-            "KEY_WIND",
+            "KEY_WEATHER",
             "KEY_FORECAST",
             "KEY_TRAFFIC",
-            "KEY_CURRENCY"
+            "KEY_CURRENCY",
+            "KEY_PRESSURE"
         ],
         "projectType": "native",
         "resources": {

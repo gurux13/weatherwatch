@@ -79,6 +79,15 @@ function getCity(lat, lng) {
   });
 }
 
+function extractExtendedWeather(text) {
+  console.log(text);
+  var pressure_info_a = text.match(/<div class="current-weather__condition-item">Давление: ([0-9]*) мм рт. ст./);
+  var pressure_info = at_or_default(pressure_info_a, 1, "888");
+  return {
+    pressure: pressure_info
+  };
+                                 
+}
 
 function extractWeather(text) {
   var weather_info_a = text.match(/<div class="today-forecast">([^<]*)</);
@@ -166,48 +175,60 @@ function onGotLayers(text) {
   
   xhrRequest(urlTraffic, 'GET', onGotTraffic);
 }
-
+var hadLocationError = false;
+var locationRequested = false;
 function locationSuccess(pos) {
   // Construct URL
+  hadLocationError = false;
+  locationRequested = false;
   console.log("Location acquired, requesting weather");
   getCity(pos.coords.latitude, pos.coords.longitude);
   var urlWeather = "https://p.ya.ru/moscow?lat=" + pos.coords.latitude + "&lon=" + pos.coords.longitude;
   // Send request to OpenWeatherMap
   xhrRequest(urlWeather, 'GET', 
     function(responseText) {
-      console.log("YA response got, length: " + responseText.length);
-      // responseText contains a JSON object with weather info
-      var weather = extractWeather(responseText);
-      console.log("Weather extracted");
-      // Temperature in Kelvin requires adjustment
-      var temperature = weather.now.temperature;
-      console.log("Temperature is " + temperature);
+      var urlExtended = "https://pogoda.yandex.ru/moscow?lat=" + pos.coords.latitude + "&lon=" + pos.coords.longitude;
+        xhrRequest(urlExtended, 'GET', 
+        function(responseTextExtended) {
 
-      // Conditions
-      var conditions = weather.now.conditions;
-      var wind = weather.now.wind;
-      var forecast = weather.forecast;
-      console.log("Conditions are " + conditions);
-      console.log("Wind is " + wind);
-      
-      // Assemble dictionary using our keys
-      var dictionary = {
-        "KEY_TEMPERATURE": temperature,
-        "KEY_CONDITIONS": conditions,
-        "KEY_WIND": wind,
-        "KEY_FORECAST": forecast
-      };
-
-      // Send to Pebble
-      Pebble.sendAppMessage(dictionary,
-        function(e) {
-          console.log("Weather info sent to Pebble successfully!");
-        },
-        function(e) {
-          console.log("Error sending weather info to Pebble!");
-        }
-      );
-    }      
+          console.log("YA response got, length: " + responseText.length);
+          // responseText contains a JSON object with weather info
+          var weather = extractWeather(responseText);
+          var extendedWeather = extractExtendedWeather(responseTextExtended);
+          console.log("Weather extracted");
+          var pressure = extendedWeather.pressure;
+          // Temperature in Kelvin requires adjustment
+          var temperature = weather.now.temperature;
+          console.log("Temperature is " + temperature);
+          if (pos.coords.fallback !== undefined) {
+            temperature = "MSK " + temperature;
+          }
+          // Conditions
+          var conditions = weather.now.conditions;
+          var wind = weather.now.wind;
+          var forecast = weather.forecast;
+          console.log("Conditions are " + conditions);
+          console.log("Wind is " + wind);
+          var weather = temperature + " " + wind + " " + pressure + "\n" + conditions;
+          // Assemble dictionary using our keys
+          var dictionary = {
+            "KEY_WEATHER": weather,
+            "KEY_FORECAST": forecast,
+            "KEY_PRESSURE": pressure
+          };
+    
+          // Send to Pebble
+          Pebble.sendAppMessage(dictionary,
+            function(e) {
+              console.log("Weather info sent to Pebble successfully!");
+            },
+            function(e) {
+              console.log("Error sending weather info to Pebble!");
+            }
+          );
+          
+      });
+    }
   );
   var urlLayers = "https://api-maps.yandex.ru/services/coverage/1.0/layers.xml?lang=ru_RU&l=trf&callback=id_146635635855735192313&_=6404139&host_config%5Bhostname%5D=yandex.ru";
   xhrRequest(urlLayers, 'GET', onGotLayers);
@@ -215,6 +236,31 @@ function locationSuccess(pos) {
 
 function locationError(err) {
   console.log("Error requesting location!");
+  locationRequested = false;
+  if (hadLocationError)
+  {
+    console.log("Double fault: defaulting to MSK");
+    locationSuccess({
+      coords: {
+        latitude: '37.446291', 
+        longitude: '55.675500',
+        fallback: true
+      }
+    });
+    return; //Do not make infinite loops;
+  }
+  console.log("Trying old location.");
+  hadLocationError = true;
+  if (locationRequested) {
+    console.log("No re-requesting location");
+    return;
+  }
+  locationRequested = true;
+  navigator.geolocation.getCurrentPosition(
+    locationSuccess,
+    locationError,
+    {timeout: 60000}
+  );
 }
 function parseCurrency(text) {
   text = text.replace(/.*value"\s*:\s*/, '').replace(/[^0-9.]/g,'');
@@ -253,10 +299,16 @@ function onUsd(text) {
 }
 function getWeather() {
   console.log("Requesting location...");
+  if (locationRequested) {
+    console.log("No re-requesting location");
+    return;
+  }
+  locationRequested = true;
+
   navigator.geolocation.getCurrentPosition(
     locationSuccess,
     locationError,
-    {timeout: 15000, maximumAge: 600000}
+    {timeout: 60000, maximumAge: 3600000}
   );
 }
 function getCurrencies() {

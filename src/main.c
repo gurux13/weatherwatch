@@ -215,26 +215,18 @@ static void draw_currency() {
 }
 static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
   // Store incoming information
-  static char temperature_buffer[8];
-  static char conditions_buffer[32];
-  static char wind_buffer[32];
   
 
   // Read tuples for data
-  Tuple *temp_tuple = dict_find(iterator, MESSAGE_KEY_KEY_TEMPERATURE);
-  Tuple *conditions_tuple = dict_find(iterator, MESSAGE_KEY_KEY_CONDITIONS);
-  Tuple *wind_tuple = dict_find(iterator, MESSAGE_KEY_KEY_WIND);
+  Tuple *weather_tuple = dict_find(iterator, MESSAGE_KEY_KEY_WEATHER);
   Tuple *forecast_tuple = dict_find(iterator, MESSAGE_KEY_KEY_FORECAST);
   Tuple *traffic_tuple = dict_find(iterator, MESSAGE_KEY_KEY_TRAFFIC);
   Tuple *currency_tuple = dict_find(iterator, MESSAGE_KEY_KEY_CURRENCY);
   // If all data is available, use it
-  if(temp_tuple && conditions_tuple && wind_tuple && forecast_tuple) {
-    snprintf(temperature_buffer, sizeof(temperature_buffer), "%s", temp_tuple->value->cstring);
-    snprintf(conditions_buffer, sizeof(conditions_buffer), "%s", conditions_tuple->value->cstring);
-    snprintf(wind_buffer, sizeof(wind_buffer), "%s", wind_tuple->value->cstring);
+  if(weather_tuple && forecast_tuple) {
+    snprintf(s_weather_buffer, sizeof(s_weather_buffer), "%s", weather_tuple->value->cstring);
     snprintf(s_forecast_buffer, sizeof(s_forecast_buffer), "%s", forecast_tuple->value->cstring);
     // Assemble full string and display
-    snprintf(s_weather_buffer, sizeof(s_weather_buffer), "%s, %s\n%s", temperature_buffer, wind_buffer, conditions_buffer);
     strcpy(weather_info, s_weather_buffer);
     text_layer_set_text(s_weather_layer, s_weather_buffer);
     text_layer_set_text(s_forecast_layer, s_forecast_buffer);
@@ -255,7 +247,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
 }
 
 static void inbox_dropped_callback(AppMessageResult reason, void *context) {
-  APP_LOG(APP_LOG_LEVEL_ERROR, "Message dropped!");
+  APP_LOG(APP_LOG_LEVEL_ERROR, "Message dropped! Reason: %d", reason);
 }
 static void request_weather();
 static void outbox_failed_callback(DictionaryIterator *iterator, AppMessageResult reason, void *context) {
@@ -323,10 +315,19 @@ static void update_time() {
   text_layer_set_text(s_date_layer, s_date_buffer);
   
 }
+static void vibe_hourly() {
+    static uint32_t const segments[] = { 100, 100, 100 };
+    VibePattern pat = {
+      .durations = segments,
+      .num_segments = ARRAY_LENGTH(segments),
+    };
+    vibes_enqueue_custom_pattern(pat);
+}
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   update_time();
+  
   if(tick_time->tm_min == 0) {
-    vibes_short_pulse();
+    vibe_hourly();
   }
   bool need_weather = false;
   need_weather |= tick_time->tm_min % 30 == 0;
