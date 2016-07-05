@@ -208,7 +208,7 @@ function locationSuccess(pos) {
           var forecast = weather.forecast;
           console.log("Conditions are " + conditions);
           console.log("Wind is " + wind);
-          var weatherString = temperature + " " + wind + " " + pressure + "\n" + conditions;
+          var weatherString = temperature + ", " + wind + ", " + pressure + "\n" + conditions;
           // Assemble dictionary using our keys
           var dictionary = {
             "KEY_WEATHER": weatherString,
@@ -327,7 +327,7 @@ Pebble.addEventListener('ready',
     console.log("PebbleKit JS ready!");
 
     // Get the initial weather
-    getWeather();
+    //getWeather();
     //Only currencies are free
     getCurrencies();
   }
