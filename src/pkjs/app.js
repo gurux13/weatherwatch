@@ -98,6 +98,8 @@ function extractWeather(text) {
     conditions = pieces[0].trim();
   if (conditions == "облачно с прояснениями")
      conditions = "полуоблачно";
+  if (conditions.startsWith("небольшой "))
+    conditions = conditions.replace("небольшой ", "м.");
   conditions = conditions.split(" ")[0];
   var wind = "? м/с";
   if (pieces.length > 1)
