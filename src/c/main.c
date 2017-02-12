@@ -1,5 +1,5 @@
 #include <pebble.h>
-#include <pressure.h>
+#include "src/c/pressure.h"
 
 
 
@@ -13,7 +13,7 @@ static TextLayer *s_battery_layer;
 static TextLayer *s_traffic_layer;
 static TextLayer *s_currency_layer;
 static BitmapLayer * s_traffic_image_layer;
-static Layer * s_pressure_plot_layer;
+//static Layer * s_pressure_plot_layer;
 
 static GFont s_rufont_18;
 static GFont s_rufont_14;
@@ -72,6 +72,9 @@ static void health_handler(HealthEventType event, void *context) {
     case HealthEventSleepUpdate:
       APP_LOG(APP_LOG_LEVEL_INFO, 
               "New HealthService HealthEventSleepUpdate event");
+      update_health();
+      break;
+    default:
       update_health();
       break;
   }
@@ -156,6 +159,9 @@ static void load_data()
     int val;
     val = persist_read_int(STORAGE_KEY_WEATHER_AGE);
     s_last_weather_at = *(unsigned*)(&val); //Convert int to unsigned
+    if (s_last_weather_at > (unsigned)time(NULL)) {
+      s_last_weather_at = 0; //Something wrong
+    }
   }
   if (persist_exists(STORAGE_KEY_TRAFFIC)){
     persist_read_string(STORAGE_KEY_TRAFFIC, s_traffic_buffer, sizeof(s_traffic_buffer));
@@ -164,10 +170,11 @@ static void load_data()
     persist_read_string(STORAGE_KEY_CURRENCY, s_currency_buffer, sizeof(s_currency_buffer));
   }
   char obtained_at [32];
-  time_t temp = time(NULL);
+  time_t temp = s_last_weather_at;
   struct tm *tick_time = localtime(&temp);
   strftime(obtained_at, sizeof(obtained_at), "%d.%m.%y %H:%M", tick_time);
-  APP_LOG(APP_LOG_LEVEL_INFO, "Loaded weather info from persist: %s, obtained at %s", weather_info, obtained_at);
+  APP_LOG(APP_LOG_LEVEL_INFO, "Weather info from persist: %s", weather_info);
+  APP_LOG(APP_LOG_LEVEL_INFO, "Obtained at %s", obtained_at);
 }
 static void save_data() {
   if (weather_info[0]) {
@@ -206,6 +213,7 @@ static void draw_traffic() {
       colorCode = GColorWhite;
       break;
   }
+  //TODO: Remove me
   s_traffic_bitmap = gbitmap_create_with_resource(resource);
   bitmap_layer_set_bitmap(s_traffic_image_layer, s_traffic_bitmap);
   text_layer_set_text(s_traffic_layer, traffic_text);
@@ -217,7 +225,7 @@ static void draw_currency() {
 static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
   // Store incoming information
   
-
+  APP_LOG(APP_LOG_LEVEL_INFO, "Received something from phone");
   // Read tuples for data
   Tuple *weather_tuple = dict_find(iterator, MESSAGE_KEY_KEY_WEATHER);
   Tuple *forecast_tuple = dict_find(iterator, MESSAGE_KEY_KEY_FORECAST);
@@ -226,9 +234,11 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
   Tuple *pressure_tuple = dict_find(iterator, MESSAGE_KEY_KEY_PRESSURE);
   // If all data is available, use it
   if(weather_tuple && forecast_tuple) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Received weather");
     snprintf(s_weather_buffer, sizeof(s_weather_buffer), "%s", weather_tuple->value->cstring);
     snprintf(s_forecast_buffer, sizeof(s_forecast_buffer), "%s", forecast_tuple->value->cstring);
     // Assemble full string and display
+    APP_LOG(APP_LOG_LEVEL_INFO, "w:%s, f:%s", s_weather_buffer, s_forecast_buffer);
     strcpy(weather_info, s_weather_buffer);
     text_layer_set_text(s_weather_layer, s_weather_buffer);
     text_layer_set_text(s_forecast_layer, s_forecast_buffer);
@@ -247,7 +257,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     save_data();
   }
   if (pressure_tuple) {
-    on_pressure_received(pressure_tuple->value->int32);
+    //on_pressure_received(pressure_tuple->value->int32);
   }
 }
 
@@ -321,7 +331,7 @@ static void update_time() {
   
 }
 static void vibe_hourly() {
-    static uint32_t const segments[] = { 100, 100, 100 };
+    static uint32_t const segments[] = { 100 };
     VibePattern pat = {
       .durations = segments,
       .num_segments = ARRAY_LENGTH(segments),
@@ -382,15 +392,17 @@ static void main_window_load(Window *window) {
   s_weather_layer = text_layer_create(
       GRect(0, y, bounds.size.w, h));
   y += h;
-  h = 31;
-  s_pressure_plot_layer = layer_create(
-    GRect(0, y, bounds.size.w, h));
-  y += h;
 
   h = 12;
   s_forecast_layer = text_layer_create(
       GRect(0, y, bounds.size.w, h));
   y += h;
+  h = 31;
+/*  s_pressure_plot_layer = layer_create(
+    GRect(0, y, bounds.size.w, h));*/
+  y += h;
+
+  
   h = 25;
   s_traffic_layer = text_layer_create(
       GRect(0, y - 5, 25, 25));
@@ -403,7 +415,7 @@ static void main_window_load(Window *window) {
       GRect(30, y, bounds.size.w - 30, 25));
   
   y += h;
-  pressure_init(s_pressure_plot_layer);
+//  pressure_init(s_pressure_plot_layer);
 
   // Improve the layout to be more like a watchface
   set_text_prop(s_date_layer, NULL, GTextAlignmentLeft, false);
@@ -434,7 +446,7 @@ static void main_window_load(Window *window) {
   layer_add_child(window_layer, bitmap_layer_get_layer(s_traffic_image_layer));
   layer_add_child(window_layer, text_layer_get_layer(s_traffic_layer));
   layer_add_child(window_layer, text_layer_get_layer(s_currency_layer));
-  layer_add_child(window_layer, s_pressure_plot_layer);
+//  layer_add_child(window_layer, s_pressure_plot_layer);
   
   update_time();
   load_data();

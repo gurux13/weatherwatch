@@ -1,5 +1,5 @@
 #include <pebble.h>
-#include "pressure.h"
+#include "src/c/pressure.h"
 #define MAX_MEASUREMENTS 100
 #define KEY_PRESSURE_CURSOR 100
 #define KEY_PRESSURE_LASTHOUR 101
@@ -14,7 +14,7 @@ static int max_measurements_fits = 0;
 static void canvas_update_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_stroke_color(ctx, GColorBlack);
   graphics_context_set_stroke_width(ctx, 1);
-  int height = layer_get_bounds(layer).size.h;
+  int height = layer_get_bounds(layer).size.h - 2;
   int min = 4096;
   int max = 0;
   for (int i = 0; i < max_measurements_fits; ++i) {
@@ -31,15 +31,19 @@ static void canvas_update_proc(Layer *layer, GContext *ctx) {
   //APP_LOG(APP_LOG_LEVEL_INFO, "Max: %d, min: %d", max, min);
   int pos = 0;
   bool first_loop = true;
-  for (int i = cursor + 1 % max_measurements_fits; ; ++i, i %= max_measurements_fits) {
-    if (!first_loop && i == cursor + 1 % max_measurements_fits)
+  int now_val = pressure_list[cursor];
+  for (int i = (cursor + 1) % max_measurements_fits; ; ++i, i %= max_measurements_fits) {
+    if (!first_loop && i == (cursor + 1) % max_measurements_fits)
       break;
     first_loop = false;
     if (pressure_list[i] == 0)
       continue;
     
-    int val = pressure_list[i] - min;
-    int h = (height * val) / (max - min);
+    int val = now_val - pressure_list[i];
+    int h = height / 2 - val;
+    if (h < 0) h = 0;
+    if (h > height)
+      h = height;
     for (int shift = 0; shift < STROKE_WIDTH; ++shift)
       graphics_draw_line(ctx, GPoint(pos + shift, height - h), GPoint(pos + shift, height));
     //graphics_draw_line(ctx, GPoint(pos, height - h), GPoint(pos, height));
@@ -59,6 +63,28 @@ static void load_pressure() {
   persist_read_data(KEY_PRESSURE_DATA, pressure_list, sizeof(pressure_list));
   last_pressure_saved = persist_read_int(KEY_PRESSURE_LASTHOUR);
 }
+static void save_pressure() {
+  int last_val = 0;
+  for (int i = 0; i < max_measurements_fits; ++i) {
+    if (pressure_list[i] != 0) {
+      last_val = pressure_list[i];
+      break;
+    }
+  }
+  for (int i = 0; i < max_measurements_fits; ++i) {
+    if (pressure_list[i] != 0) {
+      
+      last_val = pressure_list[i];
+    }
+    else {
+      pressure_list[i] = last_val;
+    }
+  }
+  
+  persist_write_int(KEY_PRESSURE_CURSOR, cursor);
+  persist_write_int(KEY_PRESSURE_LASTHOUR, last_pressure_saved);
+  persist_write_data(KEY_PRESSURE_DATA, pressure_list, sizeof(pressure_list));
+}
 void pressure_init(Layer * layer) {
 
   draw_layer = layer;
@@ -66,15 +92,13 @@ void pressure_init(Layer * layer) {
   max_measurements_fits = rect.size.w / STROKE_WIDTH;
   
   layer_set_update_proc(layer, canvas_update_proc);
+  //APP_LOG(APP_LOG_LEVEL_INFO, "Measurements fit: %d", max_measurements_fits);
   load_pressure();
+  save_pressure();
 }
 
 
-static void save_pressure() {
-  persist_write_int(KEY_PRESSURE_CURSOR, cursor);
-  persist_write_int(KEY_PRESSURE_LASTHOUR, last_pressure_saved);
-  persist_write_data(KEY_PRESSURE_DATA, pressure_list, sizeof(pressure_list));
-}
+
 void on_pressure_received(int pressure) {
   time_t now = time(NULL);
   int hours = now / 3600;

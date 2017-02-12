@@ -106,7 +106,7 @@ function extractWeather(text) {
   var temperature = at_or_default(temperature_a, 1, "-273");
   
   var forecast = "";
-  var forecast_re = /"temp-chart__hour">([0-9]*)[ ч]*<\/p>\s*<div class="temp-chart__item temp-chart__item_diff_[^"]*">\s*<div class="temp-chart__temp" data-t="[^"]*">([^<]*)<\/div>\s*<[^>]*>\s*<.{0,40}/g;
+  var forecast_re = /"temp-chart__hour"[^>]*>([0-9]*)[ ч]*<\/p>\s*<div class="temp-chart__item[^"]*"[^>]*>\s*<div class="temp-chart__temp" data-t="[^"]*">([^<]*)<\/div>\s*<[^>]*>\s*<.{0,40}/g;
   var forecast_a;
   var incl = 0;
   
@@ -116,8 +116,14 @@ function extractWeather(text) {
       if (h.length == 1)
         h = "0" + h;
       var val = forecast_a[2];
+      if (val == '0')
+        val = "+0";
+      
       if (forecast_a[0].indexOf('icon_rain') != -1)
         val += "!";
+      if (forecast_a[0].indexOf('icon_snow') != -1)
+        val += "*";
+ 
       forecast += h + val + ", ";
       
     }
@@ -176,21 +182,30 @@ function onGotLayers(text) {
 }
 var hadLocationError = false;
 var locationRequested = false;
+function getShortUrl(html, lat, lng) {
+   //href="//p.ya.ru/tver">Почасовой прогноз</a>
+  var match = html.match(/\shref="\/\/([^"]*)">Почасовой прогноз<\/a>/);
+  var url = at_or_default(match, 1, "p.ya.ru/moscow");
+  return "https://" + url + "?lat=" + lat + "&lng=" + lng;
+}
 function locationSuccess(pos) {
   // Construct URL
   hadLocationError = false;
   locationRequested = false;
   console.log("Location acquired, requesting weather");
   getCity(pos.coords.latitude, pos.coords.longitude);
-  var urlWeather = "https://p.ya.ru/moscow?lat=" + pos.coords.latitude + "&lon=" + pos.coords.longitude;
+  var urlWeather = "https://yandex.ru/pogoda/moscow/?lat=" + pos.coords.latitude + "&lon=" + pos.coords.longitude;
+  //var urlWeather = "https://p.ya.ru/moscow?lat=" + pos.coords.latitude + "&lon=" + pos.coords.longitude;
+  console.log("Requesting weather at " + urlWeather);
   // Send request to OpenWeatherMap
   xhrRequest(urlWeather, 'GET', 
-    function(responseText) {
-      var urlExtended = "https://pogoda.yandex.ru/moscow?lat=" + pos.coords.latitude + "&lon=" + pos.coords.longitude;
-        xhrRequest(urlExtended, 'GET', 
-        function(responseTextExtended) {
+    function(responseTextExtended) {
+      console.log("Got big YA response");
+      var shortUrl = getShortUrl(responseTextExtended);
+        xhrRequest(shortUrl, 'GET', 
+        function(responseText) {
 
-          console.log("YA response got, length: " + responseText.length);
+          console.log("YA short response got, length: " + responseText.length);
           // responseText contains a JSON object with weather info
           var weather = extractWeather(responseText);
           var extendedWeather = extractExtendedWeather(responseTextExtended);
@@ -232,17 +247,27 @@ function locationSuccess(pos) {
   var urlLayers = "https://api-maps.yandex.ru/services/coverage/1.0/layers.xml?lang=ru_RU&l=trf&callback=id_146635635855735192313&_=6404139&host_config%5Bhostname%5D=yandex.ru";
   xhrRequest(urlLayers, 'GET', onGotLayers);
 }
-
+function requestLocation(cached) {
+  var options = {timeout: 60000, maximumAge: 3600000, enableHighAccuracy: true};
+  if (cached)
+    options.maximumAge = Infinity;
+  navigator.geolocation.getCurrentPosition(
+    locationSuccess,
+    locationError,
+    options
+  );
+}
 function locationError(err) {
-  console.log("Error requesting location!");
+  console.log("Error requesting location: " + err.message);
+  console.log(err);
   locationRequested = false;
   if (hadLocationError)
   {
     console.log("Double fault: defaulting to MSK");
     locationSuccess({
       coords: {
-        latitude: '37.446291', 
-        longitude: '55.675500',
+        latitude: '55.675500',
+        longitude: '37.446291', 
         fallback: true
       }
     });
@@ -255,11 +280,7 @@ function locationError(err) {
     return;
   }
   locationRequested = true;
-  navigator.geolocation.getCurrentPosition(
-    locationSuccess,
-    locationError,
-    {timeout: 60000}
-  );
+  requestLocation(true);
 }
 function parseCurrency(text) {
   text = text.replace(/.*value"\s*:\s*/, '').replace(/[^0-9.]/g,'');
@@ -304,11 +325,7 @@ function getWeather() {
   }
   locationRequested = true;
 
-  navigator.geolocation.getCurrentPosition(
-    locationSuccess,
-    locationError,
-    {timeout: 60000, maximumAge: 3600000}
-  );
+  requestLocation(false);
 }
 function getCurrencies() {
   var usdUrl = "http://www.rbc.ru/money_graph/latest/59111/";
