@@ -9,6 +9,7 @@ static TextLayer *s_time_layer;
 static TextLayer *s_date_layer;
 static TextLayer *s_weather_layer;
 static TextLayer *s_forecast_layer;
+static TextLayer *s_lastupdate_layer;
 static TextLayer *s_battery_layer;
 static TextLayer *s_traffic_layer;
 static TextLayer *s_currency_layer;
@@ -29,7 +30,8 @@ static char s_weather_buffer [64] = {0};
 static char s_forecast_buffer [128] = {0};
 static char s_traffic_buffer [4] = "y-";
 static char s_currency_buffer [32] = {0};
-static unsigned s_last_weather_at = 0;
+static char s_lastupdate_buffer [32] = {0};
+static long s_last_weather_at = 0;
 #define STORAGE_KEY_WEATHER 0
 #define STORAGE_KEY_WEATHER_AGE 1
 #define STORAGE_KEY_WEATHER_FORECAST 2
@@ -84,6 +86,15 @@ static void subscribe_health() {
     APP_LOG(APP_LOG_LEVEL_ERROR, "Health not available!");
   }
 }
+static void lastupdate_string(char * buffer, int bufsize) {
+  struct tm *tick_time = localtime(&s_last_weather_at);
+  strftime(buffer, bufsize, "%H:%M", tick_time);
+}
+static void draw_lastupdate() {
+  lastupdate_string(s_lastupdate_buffer, sizeof(s_lastupdate_buffer));
+  text_layer_set_text(s_lastupdate_layer, s_lastupdate_buffer);
+  APP_LOG(APP_LOG_LEVEL_INFO, "Drawn last update: %s", s_lastupdate_buffer);
+}
 
 //Events
 static void draw_status() {
@@ -96,6 +107,14 @@ static void draw_status() {
     strcat(s_battery_buffer, "+");
   }
   text_layer_set_text(s_battery_layer, s_battery_buffer);
+  if (s_battery <= 20) {
+    text_layer_set_background_color(s_time_layer, GColorRed);
+  } else if (s_battery <= 40) {
+    text_layer_set_background_color(s_time_layer, GColorYellow);
+  } else {
+    text_layer_set_background_color(s_time_layer, GColorBrightGreen);
+  }
+  
 }
 
 static void battery_state_handler(BatteryChargeState state) {
@@ -156,12 +175,11 @@ static void load_data()
     persist_read_string(STORAGE_KEY_WEATHER_FORECAST, s_forecast_buffer, sizeof(s_forecast_buffer));
   }
   if (persist_exists(STORAGE_KEY_WEATHER_AGE)){
-    int val;
-    val = persist_read_int(STORAGE_KEY_WEATHER_AGE);
-    s_last_weather_at = *(unsigned*)(&val); //Convert int to unsigned
-    if (s_last_weather_at > (unsigned)time(NULL)) {
+    persist_read_data(STORAGE_KEY_WEATHER_AGE, &s_last_weather_at, sizeof(s_last_weather_at));
+    if (s_last_weather_at > time(NULL)) {
       s_last_weather_at = 0; //Something wrong
     }
+    draw_lastupdate();
   }
   if (persist_exists(STORAGE_KEY_TRAFFIC)){
     persist_read_string(STORAGE_KEY_TRAFFIC, s_traffic_buffer, sizeof(s_traffic_buffer));
@@ -176,12 +194,11 @@ static void load_data()
   APP_LOG(APP_LOG_LEVEL_INFO, "Weather info from persist: %s", weather_info);
   APP_LOG(APP_LOG_LEVEL_INFO, "Obtained at %s", obtained_at);
 }
+
 static void save_data() {
   if (weather_info[0]) {
     persist_write_string(STORAGE_KEY_WEATHER, weather_info);
-    int val;
-    val = *(int*)(&s_last_weather_at);
-    persist_write_int(STORAGE_KEY_WEATHER_AGE, val);
+    persist_write_data(STORAGE_KEY_WEATHER_AGE, &s_last_weather_at, sizeof(s_last_weather_at));
     persist_write_string(STORAGE_KEY_WEATHER_FORECAST, s_forecast_buffer);
   }
   if (s_traffic_buffer[0]) {
@@ -245,6 +262,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     
     s_last_weather_at = time(NULL);
     save_data();
+    draw_lastupdate();
   }
   if (traffic_tuple) {
     snprintf(s_traffic_buffer, sizeof(s_traffic_buffer), "%s", traffic_tuple->value->cstring);
@@ -369,7 +387,6 @@ static void set_text_prop(TextLayer * layer, const char * font, GTextAlignment a
     text_layer_set_font(layer, fonts_get_system_font(font));
   text_layer_set_text_alignment(layer, align);
 }
-
 static void main_window_load(Window *window) {
   APP_LOG(APP_LOG_LEVEL_INFO, "main_window_load()");
   // Get information about the Window
@@ -397,7 +414,14 @@ static void main_window_load(Window *window) {
   s_forecast_layer = text_layer_create(
       GRect(0, y, bounds.size.w, h));
   y += h;
-  h = 31;
+  
+  h = 15;
+  s_lastupdate_layer = text_layer_create(
+      GRect(0, y, bounds.size.w, h));
+  y += h;
+
+  
+  h = 31 - 15;
 /*  s_pressure_plot_layer = layer_create(
     GRect(0, y, bounds.size.w, h));*/
   y += h;
@@ -420,12 +444,15 @@ static void main_window_load(Window *window) {
   // Improve the layout to be more like a watchface
   set_text_prop(s_date_layer, NULL, GTextAlignmentLeft, false);
   set_text_prop(s_battery_layer, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentRight, false);
-  set_text_prop(s_time_layer, FONT_KEY_LECO_42_NUMBERS, GTextAlignmentCenter, false);
+  set_text_prop(s_time_layer, FONT_KEY_LECO_42_NUMBERS, GTextAlignmentCenter, true);
   set_text_prop(s_weather_layer, NULL, GTextAlignmentCenter, true);
   set_text_prop(s_forecast_layer, FONT_KEY_GOTHIC_09, GTextAlignmentCenter, false);
+  set_text_prop(s_lastupdate_layer, FONT_KEY_GOTHIC_14, GTextAlignmentRight, true);
   set_text_prop(s_traffic_layer, FONT_KEY_GOTHIC_24_BOLD, GTextAlignmentCenter, true);
   set_text_prop(s_currency_layer, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentCenter, true);
   text_layer_set_background_color(s_traffic_layer, GColorClear);
+  text_layer_set_background_color(s_time_layer, GColorYellow);
+  //text_layer_set_background_color(s_forecast_layer, GColorYellow);
   // Create GFont
   s_rufont_18 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_RUFONT_18));
   s_rufont_14 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_RUFONT_14));
@@ -443,6 +470,7 @@ static void main_window_load(Window *window) {
   
   layer_add_child(window_layer, text_layer_get_layer(s_weather_layer));
   layer_add_child(window_layer, text_layer_get_layer(s_forecast_layer));
+  layer_add_child(window_layer, text_layer_get_layer(s_lastupdate_layer));
   layer_add_child(window_layer, bitmap_layer_get_layer(s_traffic_image_layer));
   layer_add_child(window_layer, text_layer_get_layer(s_traffic_layer));
   layer_add_child(window_layer, text_layer_get_layer(s_currency_layer));
@@ -456,6 +484,7 @@ static void main_window_load(Window *window) {
   else {
     text_layer_set_text(s_weather_layer, weather_info);
     text_layer_set_text(s_forecast_layer, s_forecast_buffer);
+    
   }
   read_event_values();
   draw_status();
@@ -473,6 +502,7 @@ static void main_window_unload(Window *window) {
   text_layer_destroy(s_forecast_layer);
   text_layer_destroy(s_battery_layer);
   text_layer_destroy(s_traffic_layer);
+  text_layer_destroy(s_lastupdate_layer);
   text_layer_destroy(s_currency_layer);
   bitmap_layer_destroy(s_traffic_image_layer);
   fonts_unload_custom_font(s_rufont_18);

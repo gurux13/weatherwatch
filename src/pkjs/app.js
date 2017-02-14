@@ -80,7 +80,10 @@ function getCity(lat, lng) {
 }
 
 function extractExtendedWeather(text) {
-  var pressure_info_a = text.match(/<div class="current-weather__condition-item">Давление: ([0-9]*) мм рт. ст./);
+  console.log(text);
+  //var pressure_info_a = text.match(/<div class="current-weather__condition-item">Давление: ([0-9]*) мм рт. ст./);
+  var pressure_info_a = text.match(/Давление:[^0-9]*([0-9]*) мм рт\. ст\./);
+  
   var pressure_info = at_or_default(pressure_info_a, 1, "888");
   return {
     pressure: pressure_info
@@ -92,14 +95,14 @@ function extractWeather(text) {
   var weather_info_a = text.match(/<div class="today-forecast">([^<]*)</);
   var weather_info = at_or_default(weather_info_a, 1, "Сегодня неизвестно, ветер ? м/с");
   weather_info = weather_info.replace("Сегодня", "");
+  console.log(weather_info);
   var pieces = weather_info.split(",");
   var conditions = "неизвестно";
   if (pieces.length > 0)
     conditions = pieces[0].trim();
   if (conditions == "облачно с прояснениями")
      conditions = "полуоблачно";
-  if (conditions.startsWith("небольшой "))
-    conditions = conditions.replace("небольшой ", "м.");
+  conditions = conditions.replace("небольшой ", "м.");
   conditions = conditions.split(" ")[0];
   var wind = "? м/с";
   if (pieces.length > 1)
