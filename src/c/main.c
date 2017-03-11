@@ -86,12 +86,27 @@ static void subscribe_health() {
     APP_LOG(APP_LOG_LEVEL_ERROR, "Health not available!");
   }
 }
-static void lastupdate_string(char * buffer, int bufsize) {
+static void lastupdate_string(char * buffer, int bufsize, int *col) {
+  long now = time(NULL);
+  long age = now - s_last_weather_at;
+  if (age > 60*60) *col = 3;
+  else if (age > 30*60) *col = 2;
+  else *col = 1;
   struct tm *tick_time = localtime(&s_last_weather_at);
   strftime(buffer, bufsize, "%H:%M", tick_time);
 }
 static void draw_lastupdate() {
-  lastupdate_string(s_lastupdate_buffer, sizeof(s_lastupdate_buffer));
+  int col;
+  lastupdate_string(s_lastupdate_buffer, sizeof(s_lastupdate_buffer), &col);
+  text_layer_set_text(s_battery_layer, s_battery_buffer);
+  if (col == 3) {
+    text_layer_set_background_color(s_lastupdate_layer, GColorSunsetOrange);
+  } else if (col == 2) {
+    text_layer_set_background_color(s_lastupdate_layer, GColorYellow);
+  } else {
+    text_layer_set_background_color(s_lastupdate_layer, GColorBrightGreen);
+  }
+  
   text_layer_set_text(s_lastupdate_layer, s_lastupdate_buffer);
   APP_LOG(APP_LOG_LEVEL_INFO, "Drawn last update: %s", s_lastupdate_buffer);
 }
@@ -108,13 +123,13 @@ static void draw_status() {
   }
   text_layer_set_text(s_battery_layer, s_battery_buffer);
   if (s_battery <= 20) {
-    text_layer_set_background_color(s_time_layer, GColorRed);
+    text_layer_set_background_color(s_time_layer, GColorSunsetOrange);
   } else if (s_battery <= 40) {
     text_layer_set_background_color(s_time_layer, GColorYellow);
   } else {
     text_layer_set_background_color(s_time_layer, GColorBrightGreen);
   }
-  
+
 }
 
 static void battery_state_handler(BatteryChargeState state) {
@@ -415,9 +430,9 @@ static void main_window_load(Window *window) {
       GRect(0, y, bounds.size.w, h));
   y += h;
   
-  h = 15;
+  h = 18;
   s_lastupdate_layer = text_layer_create(
-      GRect(0, y, bounds.size.w, h));
+      GRect(113, y, bounds.size.w - 113, h));
   y += h;
 
   
@@ -447,7 +462,7 @@ static void main_window_load(Window *window) {
   set_text_prop(s_time_layer, FONT_KEY_LECO_42_NUMBERS, GTextAlignmentCenter, true);
   set_text_prop(s_weather_layer, NULL, GTextAlignmentCenter, true);
   set_text_prop(s_forecast_layer, FONT_KEY_GOTHIC_09, GTextAlignmentCenter, false);
-  set_text_prop(s_lastupdate_layer, FONT_KEY_GOTHIC_14, GTextAlignmentRight, true);
+  set_text_prop(s_lastupdate_layer, FONT_KEY_GOTHIC_14, GTextAlignmentCenter, true);
   set_text_prop(s_traffic_layer, FONT_KEY_GOTHIC_24_BOLD, GTextAlignmentCenter, true);
   set_text_prop(s_currency_layer, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentCenter, true);
   text_layer_set_background_color(s_traffic_layer, GColorClear);
