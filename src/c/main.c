@@ -1,6 +1,7 @@
 #include <pebble.h>
 #include "src/c/pressure.h"
-
+#include "src/c/commons.h"
+#include "src/c/forecast_days.h"
 
 
 //variables
@@ -28,6 +29,7 @@ static char s_battery_buffer [8] = {0};
 static char s_time_buffer [8] = {0};
 static char s_weather_buffer [64] = {0};
 static char s_forecast_buffer [128] = {0};
+static char s_forecast_days_buffer [128] = {0};
 static char s_traffic_buffer [4] = "y-";
 static char s_currency_buffer [32] = {0};
 static char s_lastupdate_buffer [32] = {0};
@@ -37,7 +39,7 @@ static long s_last_weather_at = 0;
 #define STORAGE_KEY_WEATHER_FORECAST 2
 #define STORAGE_KEY_TRAFFIC 3
 #define STORAGE_KEY_CURRENCY 4
-
+#define STORAGE_KEY_WEATHER_FORECAST_DAYS 5
 
 //Health
 static void update_health() {
@@ -137,6 +139,7 @@ static void battery_state_handler(BatteryChargeState state) {
   s_battery = state.charge_percent;
   s_battery_charging = state.is_charging;
   draw_status();
+  draw_lastupdate();
 }
 
 static void subscribe_battery() {
@@ -189,6 +192,9 @@ static void load_data()
   if (persist_exists(STORAGE_KEY_WEATHER_FORECAST)){
     persist_read_string(STORAGE_KEY_WEATHER_FORECAST, s_forecast_buffer, sizeof(s_forecast_buffer));
   }
+    if (persist_exists(STORAGE_KEY_WEATHER_FORECAST_DAYS)){
+    persist_read_string(STORAGE_KEY_WEATHER_FORECAST_DAYS, s_forecast_days_buffer, sizeof(s_forecast_days_buffer));
+  }
   if (persist_exists(STORAGE_KEY_WEATHER_AGE)){
     persist_read_data(STORAGE_KEY_WEATHER_AGE, &s_last_weather_at, sizeof(s_last_weather_at));
     if (s_last_weather_at > time(NULL)) {
@@ -207,6 +213,7 @@ static void load_data()
   struct tm *tick_time = localtime(&temp);
   strftime(obtained_at, sizeof(obtained_at), "%d.%m.%y %H:%M", tick_time);
   APP_LOG(APP_LOG_LEVEL_INFO, "Weather info from persist: %s", weather_info);
+  APP_LOG(APP_LOG_LEVEL_INFO, "Days forecast from persist: %s", s_forecast_days_buffer);
   APP_LOG(APP_LOG_LEVEL_INFO, "Obtained at %s", obtained_at);
 }
 
@@ -215,6 +222,8 @@ static void save_data() {
     persist_write_string(STORAGE_KEY_WEATHER, weather_info);
     persist_write_data(STORAGE_KEY_WEATHER_AGE, &s_last_weather_at, sizeof(s_last_weather_at));
     persist_write_string(STORAGE_KEY_WEATHER_FORECAST, s_forecast_buffer);
+    
+    persist_write_string(STORAGE_KEY_WEATHER_FORECAST_DAYS, s_forecast_days_buffer);
   }
   if (s_traffic_buffer[0]) {
     persist_write_string(STORAGE_KEY_TRAFFIC, s_traffic_buffer);
@@ -267,8 +276,13 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
   // If all data is available, use it
   if(weather_tuple && forecast_tuple) {
     APP_LOG(APP_LOG_LEVEL_INFO, "Received weather");
-    snprintf(s_weather_buffer, sizeof(s_weather_buffer), "%s", weather_tuple->value->cstring);
-    snprintf(s_forecast_buffer, sizeof(s_forecast_buffer), "%s", forecast_tuple->value->cstring);
+    
+    char * fcast = forecast_tuple->value->cstring;
+    strncpy(s_forecast_buffer, cut_till(&fcast, '|'), sizeof(s_forecast_buffer));
+    strncpy(s_forecast_days_buffer, fcast, sizeof(s_forecast_buffer));
+    strncpy(s_weather_buffer, weather_tuple->value->cstring, sizeof(s_weather_buffer));
+    APP_LOG(APP_LOG_LEVEL_INFO, "Days forecast: %s", s_forecast_days_buffer);
+    on_forecast_received(s_forecast_days_buffer);
     // Assemble full string and display
     APP_LOG(APP_LOG_LEVEL_INFO, "w:%s, f:%s", s_weather_buffer, s_forecast_buffer);
     strcpy(weather_info, s_weather_buffer);
@@ -389,19 +403,7 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
 
 //Window
 
-static void set_text_prop(TextLayer * layer, const char * font, GTextAlignment align, bool white) {
-  if (white) {
-    text_layer_set_background_color(layer, GColorWhite);
-    text_layer_set_text_color(layer, GColorBlack);
-  }
-  else {
-    text_layer_set_background_color(layer, GColorBlack);
-    text_layer_set_text_color(layer, GColorWhite);
-    }
-  if (font)
-    text_layer_set_font(layer, fonts_get_system_font(font));
-  text_layer_set_text_alignment(layer, align);
-}
+
 static void main_window_load(Window *window) {
   APP_LOG(APP_LOG_LEVEL_INFO, "main_window_load()");
   // Get information about the Window
@@ -422,21 +424,25 @@ static void main_window_load(Window *window) {
   y += h - 4;
   h = 40;
   s_weather_layer = text_layer_create(
-      GRect(0, y, bounds.size.w, h));
+      GRect(4, y, bounds.size.w - 4, h));
   y += h;
+  s_lastupdate_layer = text_layer_create(
+      GRect(113, y - 16, bounds.size.w - 113, 16));
 
   h = 12;
   s_forecast_layer = text_layer_create(
       GRect(0, y, bounds.size.w, h));
   y += h;
   
-  h = 18;
-  s_lastupdate_layer = text_layer_create(
-      GRect(113, y, bounds.size.w - 113, h));
-  y += h;
 
+  /*s_lastupdate_layer = text_layer_create(
+      GRect(113, y, bounds.size.w - 113, h));*/
+  //y += h;
+
+  h = fday_init(window_layer, 0, y);
   
-  h = 31 - 15;
+  
+ // h = 31 - 15;
 /*  s_pressure_plot_layer = layer_create(
     GRect(0, y, bounds.size.w, h));*/
   y += h;
@@ -460,7 +466,7 @@ static void main_window_load(Window *window) {
   set_text_prop(s_date_layer, NULL, GTextAlignmentLeft, false);
   set_text_prop(s_battery_layer, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentRight, false);
   set_text_prop(s_time_layer, FONT_KEY_LECO_42_NUMBERS, GTextAlignmentCenter, true);
-  set_text_prop(s_weather_layer, NULL, GTextAlignmentCenter, true);
+  set_text_prop(s_weather_layer, NULL, GTextAlignmentLeft, true);
   set_text_prop(s_forecast_layer, FONT_KEY_GOTHIC_09, GTextAlignmentCenter, false);
   set_text_prop(s_lastupdate_layer, FONT_KEY_GOTHIC_14, GTextAlignmentCenter, true);
   set_text_prop(s_traffic_layer, FONT_KEY_GOTHIC_24_BOLD, GTextAlignmentCenter, true);
@@ -499,7 +505,7 @@ static void main_window_load(Window *window) {
   else {
     text_layer_set_text(s_weather_layer, weather_info);
     text_layer_set_text(s_forecast_layer, s_forecast_buffer);
-    
+    on_forecast_received(s_forecast_days_buffer);
   }
   read_event_values();
   draw_status();
@@ -522,6 +528,7 @@ static void main_window_unload(Window *window) {
   bitmap_layer_destroy(s_traffic_image_layer);
   fonts_unload_custom_font(s_rufont_18);
   fonts_unload_custom_font(s_rufont_14);
+  fday_deinit();
 }
 
 //System

@@ -1,7 +1,8 @@
 {
     "author": "gurux13@gmail.com",
     "dependencies": {
-        "pebble-clay": "^1.0.3"
+        "pebble-clay": "^1.0.3",
+        "pebble-effect-layer": "^1.1.4"
     },
     "keywords": [],
     "name": "weatherwatch",
@@ -22,6 +23,55 @@
         "projectType": "native",
         "resources": {
             "media": [
+                {
+                    "file": "images/unknown-s.png",
+                    "memoryFormat": "1Bit",
+                    "name": "IMAGE_WEATHER_UNKNOWN",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/thunder.png",
+                    "memoryFormat": "1Bit",
+                    "name": "IMAGE_WEATHER_THUNDER",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/sunny.png",
+                    "memoryFormat": "1Bit",
+                    "name": "IMAGE_WEATHER_SUNNY",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/snow.png",
+                    "memoryFormat": "1Bit",
+                    "name": "IMAGE_WEATHER_SNOW",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/rain.png",
+                    "memoryFormat": "1Bit",
+                    "name": "IMAGE_WEATHER_RAIN",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/partly.png",
+                    "memoryFormat": "1Bit",
+                    "name": "IMAGE_WEATHER_PARTLY",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/cloudy.png",
+                    "memoryFormat": "1Bit",
+                    "name": "IMAGE_WEATHER_CLOUDY",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
                 {
                     "file": "images/red.png",
                     "name": "IMAGE_TRAFFIC_RED",
@@ -97,9 +147,7 @@
         },
         "sdkVersion": "3",
         "targetPlatforms": [
-            "aplite",
-            "basalt",
-            "diorite"
+            "basalt"
         ],
         "uuid": "b1aacfbf-fe69-4224-a12a-c2d9780c8620",
         "watchapp": {
