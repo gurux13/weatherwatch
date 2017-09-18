@@ -82,6 +82,15 @@ function getCity(lat, lng) {
 }
 
 function getIcon(ya_name) {
+  console.log('Icon: ' + ya_name);
+  
+  if (ya_name && ya_name.length > 0 && ya_name[0].length > 1) {
+    console.log("Array detected");
+    var rv = '';
+    for (var i = 0; i < ya_name.length; ++i)
+      rv += getIcon(ya_name[i]);
+    return rv;
+  }
   if (ya_name.match(/_bkn/))
     return 'p';
   if (ya_name.match(/-ts/))
@@ -103,17 +112,34 @@ function makeTemp(val) {
   return '+' + val;
 }
 function extractDailyFcast2(text) {
-  var matches = text.match(/<dt class="day__date[" ]((?!<\/dl>).)*<\/dl>/g);
+  var matches = text.match(/<dt class="brief__day[" ]((?!<\/dl>).)*<\/dl>/g);
+  //console.log("FACST text:" + text);
   var retval = "";
   var have = 0;
+  var nowIcon = [];
   if (matches) {
-    for (var idx = 1; idx < matches.length; ++idx) { //skip today
+    for (var idx = 0; idx < matches.length; ++idx) { //skip today
       //console.log(matches[idx]);
       var m = matches[idx].replace('−', '-');
       var date = at_or_default(m.match(/id="d_([0-9]+)/), 1, '');
-      var tDay = at_or_default(m.match(/днём((?!t_c_).)*t_c_([-+0-9]+)/), 2, '');
-      var tNight = at_or_default(m.match(/ночью((?!t_c_).)*t_c_([-+0-9]+)/), 2, '');
-      var icon = at_or_default(m.match(/днём((?!<i).)*<i class="icon ([^ "]*)/), 2, 'unk');
+      var tDay = at_or_default(m.match(/днём[^°]*>([-+0-9]+)°/), 1, '');
+      var tNight = at_or_default(m.match(/ночью[^°]*>([-+0-9]+)°/), 1, '');
+      var icon = 'unk';
+      if (idx === 0) {
+        var iconMatches = m.match(/(icon_thumb[-a-zA-Z_0-9]*)/g);
+        for (var i = 0; i < iconMatches.length; ++i) {
+          console.log("Daily icon:" + iconMatches[i]);
+          nowIcon = nowIcon.concat([iconMatches[i]]);
+        }
+        //icon = at_or_default(m.match(/>сегодня((?!<i).)*<i class="icon [^"]*(thumb[^ "]*)/), 2, 'unk');
+        console.log("Current icon: " + nowIcon);
+      }
+      else 
+        icon = at_or_default(m.match(/днём((?!<i).)*<i class="icon [^"]* (icon_thumb[^ "]*)/), 2, 'unk');
+      if (idx === 0) { //today
+        //nowIcon = icon;
+        continue;
+      }
       console.log("Icon: " + icon);
       if (!date || !tDay || !tNight || !icon) {
         console.log("Skipped: " + m);
@@ -127,12 +153,16 @@ function extractDailyFcast2(text) {
     }
     
   }
-  return retval;
+  return {
+    forecast:retval,
+    nowIcon: nowIcon
+  };
 }
 
 function extractExtendedWeather(text) {
     //var pressure_info_a = text.match(/<div class="current-weather__condition-item">Давление: ([0-9]*) мм рт. ст./);
-    var pressure_info_a = text.match(/Давление:[^0-9]*([0-9]*) мм рт\. ст\./);
+  //console.log("Extended weather text: " + text);
+    var pressure_info_a = text.match(/([0-9]+) <[^>]*>мм рт\. ст\./);
 
     var pressure_info = at_or_default(pressure_info_a, 1, "888");
 
@@ -140,6 +170,7 @@ function extractExtendedWeather(text) {
     var retval = "";
     var have = 0;
     if (matches) {
+      console.log("Will use v1 forecast");
         for (var idx = 1; idx < matches.length; ++idx) { //skip today
             //console.log(matches[idx]);
             var m = matches[idx].replace('−', '-');
@@ -158,15 +189,21 @@ function extractExtendedWeather(text) {
           if (have == 3)
             break;
         }
+      retval = {
+        forecast:retval,
+        nowIcon:'unknown'
+      };
     } else {
+      console.log("Will use v2 forecast");
       retval = extractDailyFcast2(text);
     }
-    console.log(retval);
+    console.log("Forecast:" + retval.forecast);
 
-
+    
     return {
         pressure: pressure_info,
-        forecast: retval
+        forecast: retval.forecast,
+        nowIcon: getIcon(retval.nowIcon)
     };
 
 }
@@ -187,7 +224,7 @@ function extractWeather(text) {
     var wind = "? м/с";
     if (pieces.length > 1)
         wind = pieces[1].replace("ветер", "").trim();
-    var temperature_a = text.match(/<span class="temp-current i-bem" data-bem="[^"]*">([^<]*)</);
+    var temperature_a = text.match(/<span class="temp-current i-bem" data-bem='[^']*'>([^<]*)</);
     var temperature = at_or_default(temperature_a, 1, "-273");
 
     var forecast = "";
@@ -230,6 +267,7 @@ function extractWeather(text) {
 
 function onGotTraffic(text) {
     console.log("Got traffic");
+  //console.log(text);
     var matches = text.match(/"level":([0-9]*),/);
 
     var level = at_or_default(matches, 1, "-1");
@@ -270,8 +308,18 @@ var hadLocationError = false;
 var locationRequested = false;
 function getShortUrl(html, lat, lng) {
     //href="//p.ya.ru/tver">Почасовой прогноз</a>
+  //console.log(html);
     var match = html.match(/\shref="\/\/([^"]*)">Почасовой прогноз<\/a>/);
-    var url = at_or_default(match, 1, "p.ya.ru/moscow");
+    var url = at_or_default(match, 1, '');
+    if (url === '')
+    {
+      match = html.match(/link rel="canonical" href="\/\/yandex.ru\/pogoda\/([^"]*)"\/>/);
+      var city = at_or_default(match, 1, "moscow");
+      console.log("founD ya city " + city);
+      url = "p.ya.ru/"+city;
+    } 
+    
+    console.log(url);
     return "https://" + url + "?lat=" + lat + "&lng=" + lng;
 }
 function locationSuccess(pos) {
@@ -287,7 +335,7 @@ function locationSuccess(pos) {
     xhrRequest(urlWeather, 'GET',
       function (responseTextExtended) {
           console.log("Got big YA response");
-        console.log(responseTextExtended);
+        //console.log(responseTextExtended);
           var shortUrl = getShortUrl(responseTextExtended);
           xhrRequest(shortUrl, 'GET',
           function (responseText) {
@@ -305,7 +353,8 @@ function locationSuccess(pos) {
                   temperature = "? " + temperature;
               }
               // Conditions
-              var conditions = weather.now.conditions;
+              var conditions = extendedWeather.nowIcon;// weather.now.conditions;
+              conditions += "uuu"; //just in case - we need 3 chars.
               var wind = weather.now.wind;
               var forecast = weather.forecast + "|" + extendedWeather.forecast;
               console.log("Conditions are " + conditions);

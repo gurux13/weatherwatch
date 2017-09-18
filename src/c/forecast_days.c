@@ -50,29 +50,7 @@ void set_icon(fcast_layers * layer, char icon) {
     gbitmap_destroy(layer->icon_bmp);
   }
   
-  int resource = RESOURCE_ID_IMAGE_WEATHER_PARTLY;
-  switch (icon) {
-    case 'c':
-      resource = RESOURCE_ID_IMAGE_WEATHER_CLOUDY;
-      break;
-    case 'p':
-      resource = RESOURCE_ID_IMAGE_WEATHER_PARTLY;
-      break;
-    case 's':
-      resource = RESOURCE_ID_IMAGE_WEATHER_SNOW;
-      break;
-    case 'S':
-      resource = RESOURCE_ID_IMAGE_WEATHER_SUNNY;
-      break;
-    case 'r':
-      resource = RESOURCE_ID_IMAGE_WEATHER_RAIN;
-      break;    
-    case 't':
-      resource = RESOURCE_ID_IMAGE_WEATHER_THUNDER;
-      break;
-    default:
-      resource = RESOURCE_ID_IMAGE_WEATHER_UNKNOWN;
-  }
+  int resource = get_conditions_icon_id(icon);
   layer->icon_bmp = gbitmap_create_with_resource(resource);
   if (layer->icon_bmp)
     bitmap_layer_set_bitmap(layer->icon, layer->icon_bmp);

@@ -15,6 +15,9 @@ static TextLayer *s_battery_layer;
 static TextLayer *s_traffic_layer;
 static TextLayer *s_currency_layer;
 static BitmapLayer * s_traffic_image_layer;
+static BitmapLayer * s_weather_conditions_image_layer;
+static BitmapLayer * s_weather_conditions2_image_layer;
+static BitmapLayer * s_weather_conditions3_image_layer;
 //static Layer * s_pressure_plot_layer;
 
 static GFont s_rufont_18;
@@ -41,6 +44,10 @@ static long s_last_weather_at = 0;
 #define STORAGE_KEY_CURRENCY 4
 #define STORAGE_KEY_WEATHER_FORECAST_DAYS 5
 
+
+static void draw_weather();
+
+
 //Health
 static void update_health() {
   HealthMetric metric = HealthMetricStepCount;
@@ -53,29 +60,20 @@ static void update_health() {
   
   if(mask & HealthServiceAccessibilityMaskAvailable) {
     // Data is available!
-    APP_LOG(APP_LOG_LEVEL_INFO, "Steps today: %d", 
-            (int)health_service_sum_today(metric));
   } else {
     // No data recorded yet today
-    APP_LOG(APP_LOG_LEVEL_ERROR, "Data unavailable!");
   }
 }
 static void health_handler(HealthEventType event, void *context) {
   // Which type of event occurred?
   switch(event) {
     case HealthEventSignificantUpdate:
-      APP_LOG(APP_LOG_LEVEL_INFO, 
-              "New HealthService HealthEventSignificantUpdate event");
       update_health();
       break;
     case HealthEventMovementUpdate:
-      APP_LOG(APP_LOG_LEVEL_INFO, 
-              "New HealthService HealthEventMovementUpdate event");
       update_health();
       break;
     case HealthEventSleepUpdate:
-      APP_LOG(APP_LOG_LEVEL_INFO, 
-              "New HealthService HealthEventSleepUpdate event");
       update_health();
       break;
     default:
@@ -110,7 +108,6 @@ static void draw_lastupdate() {
   }
   
   text_layer_set_text(s_lastupdate_layer, s_lastupdate_buffer);
-  APP_LOG(APP_LOG_LEVEL_INFO, "Drawn last update: %s", s_lastupdate_buffer);
 }
 
 //Events
@@ -205,8 +202,11 @@ static void load_data()
   if (persist_exists(STORAGE_KEY_TRAFFIC)){
     persist_read_string(STORAGE_KEY_TRAFFIC, s_traffic_buffer, sizeof(s_traffic_buffer));
   }
-    if (persist_exists(STORAGE_KEY_CURRENCY)){
+  if (persist_exists(STORAGE_KEY_CURRENCY)){
     persist_read_string(STORAGE_KEY_CURRENCY, s_currency_buffer, sizeof(s_currency_buffer));
+  }
+  if (*weather_info) {
+    draw_weather();
   }
   char obtained_at [32];
   time_t temp = s_last_weather_at;
@@ -263,6 +263,47 @@ static void draw_traffic() {
 static void draw_currency() {
   text_layer_set_text(s_currency_layer, s_currency_buffer);
 }
+
+void draw_weather_icon(char * icon) {
+  static GBitmap *s_icon_bitmap = NULL;
+  static GBitmap *s_icon_bitmap2 = NULL;
+  static GBitmap *s_icon_bitmap3 = NULL;
+  if (s_icon_bitmap != NULL) {
+    gbitmap_destroy(s_icon_bitmap);
+  }
+    if (s_icon_bitmap2 != NULL) {
+    gbitmap_destroy(s_icon_bitmap2);
+  }
+  if (s_icon_bitmap3 != NULL) {
+    gbitmap_destroy(s_icon_bitmap3);
+  }
+  APP_LOG(APP_LOG_LEVEL_INFO, "Drawing weather: %c", icon);
+  int resource = get_conditions_icon_id(icon[0]);
+  s_icon_bitmap = gbitmap_create_with_resource(resource);
+  bitmap_layer_set_bitmap(s_weather_conditions_image_layer, s_icon_bitmap);
+  if (!icon[1])
+    return;
+  resource = get_conditions_icon_id(icon[1]);
+  s_icon_bitmap2 = gbitmap_create_with_resource(resource);
+  bitmap_layer_set_bitmap(s_weather_conditions2_image_layer, s_icon_bitmap2);
+  if (!icon[2])
+    return;
+  resource = get_conditions_icon_id(icon[2]);
+  s_icon_bitmap3 = gbitmap_create_with_resource(resource);
+  bitmap_layer_set_bitmap(s_weather_conditions3_image_layer, s_icon_bitmap3);
+}
+
+static void draw_weather() {
+  char * cutme = weather_info;
+  char * weather = cut_till(&cutme, '\n');
+  if (*cutme) {
+    char* icon = cutme;
+    strncpy(s_weather_buffer, weather, sizeof(s_weather_buffer));
+    *(cutme - 1) = '\n'; //restore '\n'
+    draw_weather_icon(icon);
+    text_layer_set_text(s_weather_layer, s_weather_buffer);
+  }
+}
 static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
   // Store incoming information
   
@@ -286,7 +327,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     // Assemble full string and display
     APP_LOG(APP_LOG_LEVEL_INFO, "w:%s, f:%s", s_weather_buffer, s_forecast_buffer);
     strcpy(weather_info, s_weather_buffer);
-    text_layer_set_text(s_weather_layer, s_weather_buffer);
+    draw_weather();
     text_layer_set_text(s_forecast_layer, s_forecast_buffer);
     
     s_last_weather_at = time(NULL);
@@ -422,10 +463,21 @@ static void main_window_load(Window *window) {
   s_time_layer = text_layer_create(
       GRect(0, y - 4, bounds.size.w, h));
   y += h - 4;
-  h = 40;
+  h = 20;
   s_weather_layer = text_layer_create(
-      GRect(4, y, bounds.size.w - 4, h));
+      GRect(0, y, bounds.size.w, h));
   y += h;
+  
+  s_weather_conditions_image_layer = bitmap_layer_create(
+    GRect(0, y, 32, h));
+  s_weather_conditions2_image_layer = bitmap_layer_create(
+    GRect(32, y, 32, h));
+  s_weather_conditions3_image_layer = bitmap_layer_create(
+    GRect(64, y, 32, h));
+
+  
+  y += h;
+  
   s_lastupdate_layer = text_layer_create(
       GRect(113, y - 16, bounds.size.w - 113, 16));
 
@@ -466,7 +518,7 @@ static void main_window_load(Window *window) {
   set_text_prop(s_date_layer, NULL, GTextAlignmentLeft, false);
   set_text_prop(s_battery_layer, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentRight, false);
   set_text_prop(s_time_layer, FONT_KEY_LECO_42_NUMBERS, GTextAlignmentCenter, true);
-  set_text_prop(s_weather_layer, NULL, GTextAlignmentLeft, true);
+  set_text_prop(s_weather_layer, NULL, GTextAlignmentCenter, true);
   set_text_prop(s_forecast_layer, FONT_KEY_GOTHIC_09, GTextAlignmentCenter, false);
   set_text_prop(s_lastupdate_layer, FONT_KEY_GOTHIC_14, GTextAlignmentCenter, true);
   set_text_prop(s_traffic_layer, FONT_KEY_GOTHIC_24_BOLD, GTextAlignmentCenter, true);
@@ -490,6 +542,9 @@ static void main_window_load(Window *window) {
   layer_add_child(window_layer, text_layer_get_layer(s_battery_layer));
   
   layer_add_child(window_layer, text_layer_get_layer(s_weather_layer));
+  layer_add_child(window_layer, bitmap_layer_get_layer(s_weather_conditions_image_layer));
+  layer_add_child(window_layer, bitmap_layer_get_layer(s_weather_conditions2_image_layer));
+  layer_add_child(window_layer, bitmap_layer_get_layer(s_weather_conditions3_image_layer));
   layer_add_child(window_layer, text_layer_get_layer(s_forecast_layer));
   layer_add_child(window_layer, text_layer_get_layer(s_lastupdate_layer));
   layer_add_child(window_layer, bitmap_layer_get_layer(s_traffic_image_layer));
@@ -503,7 +558,7 @@ static void main_window_load(Window *window) {
     request_weather();
   }
   else {
-    text_layer_set_text(s_weather_layer, weather_info);
+    //text_layer_set_text(s_weather_layer, weather_info);
     text_layer_set_text(s_forecast_layer, s_forecast_buffer);
     on_forecast_received(s_forecast_days_buffer);
   }
@@ -526,6 +581,9 @@ static void main_window_unload(Window *window) {
   text_layer_destroy(s_lastupdate_layer);
   text_layer_destroy(s_currency_layer);
   bitmap_layer_destroy(s_traffic_image_layer);
+  bitmap_layer_destroy(s_weather_conditions_image_layer);
+  bitmap_layer_destroy(s_weather_conditions2_image_layer);
+  bitmap_layer_destroy(s_weather_conditions3_image_layer);
   fonts_unload_custom_font(s_rufont_18);
   fonts_unload_custom_font(s_rufont_14);
   fday_deinit();
